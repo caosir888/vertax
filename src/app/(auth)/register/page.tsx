@@ -1,15 +1,45 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError("");
     setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, confirmPassword }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setError(json.error || "注册失败");
+        return;
+      }
+
+      // 注册成功 → 自动登录 → 跳转 dashboard
+      router.push("/dashboard");
+    } catch {
+      setError("网络错误，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -31,6 +61,9 @@ export default function RegisterPage() {
               id="name"
               type="text"
               placeholder="你的名字"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
             />
           </div>
 
@@ -42,6 +75,9 @@ export default function RegisterPage() {
               id="email"
               type="email"
               placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
@@ -53,6 +89,9 @@ export default function RegisterPage() {
               id="password"
               type="password"
               placeholder="至少 8 位密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
 
@@ -64,8 +103,17 @@ export default function RegisterPage() {
               id="confirmPassword"
               type="password"
               placeholder="再次输入密码"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
             />
           </div>
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </div>
+          )}
 
           <Button type="submit" disabled={loading} className="mt-2 w-full">
             {loading ? "注册中..." : "注册"}
