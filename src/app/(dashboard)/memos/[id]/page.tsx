@@ -155,9 +155,15 @@ export default function MemoDetailPage() {
               <Button
                 variant="destructive"
                 onClick={async () => {
-                  await fetch(`/api/memos/${params.id}`, { method: "DELETE" });
-                  toast.success("已删除");
-                  router.push("/memos");
+                  try {
+                    const res = await fetch(`/api/memos/${params.id}`, { method: "DELETE" });
+                    const json = await res.json();
+                    if (json.error) { toast.error(json.error); return; }
+                    toast.success("已删除");
+                    router.push("/memos");
+                  } catch {
+                    toast.error("删除失败");
+                  }
                 }}
               >
                 删除此备忘录

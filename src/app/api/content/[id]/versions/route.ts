@@ -14,6 +14,18 @@ export async function GET(
 
   const { id } = await params;
 
+  // 先验证内容所属团队
+  const { data: content } = await getSupabase()
+    .from("contents")
+    .select("id")
+    .eq("id", id)
+    .eq("team_id", user.team_id)
+    .maybeSingle();
+
+  if (!content) {
+    return NextResponse.json({ error: "内容不存在" }, { status: 404 });
+  }
+
   const { data: versions, error } = await getSupabase()
     .from("content_versions")
     .select("*")

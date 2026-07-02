@@ -165,7 +165,7 @@ export default function KnowledgePage() {
       if (json.error) {
         toast.error(json.error);
       } else {
-        toast.success(`向量化完成！${json.data.chunk_count} 个分块，${json.data.dimensions} 维`);
+        toast.success(`向量化完成！${json.data?.chunk_count ?? 0} 个分块，${json.data?.dimensions ?? 0} 维`);
       }
     } catch {
       toast.error("向量化失败");

@@ -83,7 +83,7 @@ export default function AnalyticsPage() {
                       const maxE = Math.max(1, data.topContent[0]?.engagement || 1);
                       const barPct = Math.round((item.engagement / maxE) * 100);
                       return (
-                        <div key={item.id || i} className="flex items-center gap-3">
+                        <div key={item.id || item.content_id || i} className="flex items-center gap-3">
                           <span className={`text-xs font-bold w-5 ${i < 3 ? "text-yellow-500" : "text-zinc-300"}`}>
                             {i + 1}
                           </span>

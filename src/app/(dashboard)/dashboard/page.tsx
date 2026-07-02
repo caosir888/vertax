@@ -18,13 +18,13 @@ interface DashboardData {
   monthlyContentData: number[];
 }
 
-const LEAD_STATUS: Record<string, { label: string; color: string }> = {
-  new: { label: "新线索", color: "bg-blue-500" },
-  contacted: { label: "已联系", color: "bg-yellow-500" },
-  qualified: { label: "已确认", color: "bg-purple-500" },
-  proposal: { label: "提案中", color: "bg-orange-500" },
-  won: { label: "已成交", color: "bg-green-500" },
-  lost: { label: "已流失", color: "bg-zinc-400" },
+const LEAD_STATUS: Record<string, { label: string; color: string; badge: string }> = {
+  new: { label: "新线索", color: "bg-blue-500", badge: "bg-blue-100 text-blue-700" },
+  contacted: { label: "已联系", color: "bg-yellow-500", badge: "bg-yellow-100 text-yellow-700" },
+  qualified: { label: "已确认", color: "bg-purple-500", badge: "bg-purple-100 text-purple-700" },
+  proposal: { label: "提案中", color: "bg-orange-500", badge: "bg-orange-100 text-orange-700" },
+  won: { label: "已成交", color: "bg-green-500", badge: "bg-green-100 text-green-700" },
+  lost: { label: "已流失", color: "bg-zinc-400", badge: "bg-zinc-100 text-zinc-600" },
 };
 
 const CONTENT_STATUS: Record<string, { label: string; color: string }> = {
@@ -231,7 +231,7 @@ export default function DashboardPage() {
                           <p className="text-sm font-medium text-black">{lead.name}</p>
                           <p className="text-xs text-zinc-400">{lead.company || "—"}</p>
                         </div>
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${LEAD_STATUS[lead.status]?.color.replace("bg-", "bg-").replace("500", "100 text-" + LEAD_STATUS[lead.status]?.color.replace("bg-", "").replace("-500", "-700"))}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${LEAD_STATUS[lead.status]?.badge || "bg-zinc-100 text-zinc-500"}`}>
                           {LEAD_STATUS[lead.status]?.label}
                         </span>
                       </div>

@@ -47,7 +47,6 @@ export default function SitesPage() {
   const [step, setStep] = useState<"list" | "template" | "form" | "generating">("list");
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
-  const [generatedSite, setGeneratedSite] = useState<Site | null>(null);
 
   // 删除
   const [delOpen, setDelOpen] = useState(false);
@@ -74,7 +73,6 @@ export default function SitesPage() {
     setStep("template");
     setSelectedTemplate("");
     setSettings(defaultSettings);
-    setGeneratedSite(null);
   }
 
   function selectTemplate(id: string) {
@@ -101,7 +99,6 @@ export default function SitesPage() {
         toast.error(json.error);
         setStep("form");
       } else {
-        setGeneratedSite(json.data);
         setStep("list");
         toast.success("独立站已生成！");
         loadSites();
@@ -161,8 +158,12 @@ export default function SitesPage() {
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {sites.map((site) => {
                   const tpl = siteTemplates.find((t) => t.id === site.template_id);
-                  const pages: SitePage[] =
-                    typeof site.pages === "string" ? JSON.parse(site.pages) : site.pages;
+                  let pages: SitePage[] = [];
+                  if (typeof site.pages === "string") {
+                    try { pages = JSON.parse(site.pages); } catch { pages = []; }
+                  } else {
+                    pages = site.pages;
+                  }
                   return (
                     <div
                       key={site.id}

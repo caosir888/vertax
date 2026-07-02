@@ -139,7 +139,7 @@ export default function ChatPage() {
       const aiMsg: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: json.data?.answer || json.error || "回答失败",
+        content: json.data?.answer || (json.error ? `错误：${json.error}` : "回答失败"),
         sources: json.data?.sources || [],
         time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
       };

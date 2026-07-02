@@ -176,6 +176,15 @@ function TeamInfoTab({ team, onUpdate }: { team: Team | null; onUpdate: () => vo
   const [logoUrl, setLogoUrl] = useState(team?.logo_url || "");
   const [saving, setSaving] = useState(false);
 
+  // 同步外部 props 变化
+  const teamId = team?.id;
+  useEffect(() => {
+    setName(team?.name || "");
+    setCompanyName(team?.company_name || "");
+    setIndustry(team?.industry || "");
+    setLogoUrl(team?.logo_url || "");
+  }, [teamId]);
+
   async function save() {
     setSaving(true);
     try {
@@ -306,7 +315,7 @@ function MembersTab({ members, onUpdate }: { members: Member[]; onUpdate: () => 
                       onChange={(e) => changeRole(m.id, e.target.value)}
                       className="rounded-lg border border-zinc-200 px-2 py-1 text-xs bg-white focus:border-black focus:outline-none"
                     >
-                      {Object.entries(roleLabels).map(([val, label]) => (
+                      {Object.entries(roleLabels).filter(([val]) => val !== "owner").map(([val, label]) => (
                         <option key={val} value={val}>{label}</option>
                       ))}
                     </select>
@@ -377,9 +386,13 @@ function ApiKeysTab({ apiKeys, onUpdate }: { apiKeys: ApiKey[]; onUpdate: () => 
   }
 
   async function copyKey(key: string) {
-    await navigator.clipboard.writeText(key);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(key);
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    } else {
+      toast.error("请使用 HTTPS 访问");
+    }
   }
 
   return (

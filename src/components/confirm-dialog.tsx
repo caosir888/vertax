@@ -40,8 +40,8 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant="destructive"
-            onClick={() => {
-              onConfirm();
+            onClick={async () => {
+              await onConfirm();
               onOpenChange(false);
             }}
           >

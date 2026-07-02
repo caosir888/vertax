@@ -132,21 +132,23 @@ export default function LeadsPage() {
     }
 
     try {
+      let res: Response;
       if (editLead) {
-        await fetch(`/api/leads/${editLead.id}`, {
+        res = await fetch(`/api/leads/${editLead.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        toast.success("已更新");
       } else {
-        await fetch("/api/leads", {
+        res = await fetch("/api/leads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
-        toast.success("已创建");
       }
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
+      toast.success(editLead ? "已更新" : "已创建");
       setDialogOpen(false);
       loadLeads();
     } catch {
@@ -156,11 +158,13 @@ export default function LeadsPage() {
 
   async function moveStatus(lead: Lead, newStatus: string) {
     try {
-      await fetch(`/api/leads/${lead.id}`, {
+      const res = await fetch(`/api/leads/${lead.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
       loadLeads();
     } catch {
       toast.error("更新失败");
@@ -169,7 +173,9 @@ export default function LeadsPage() {
 
   async function deleteLead() {
     try {
-      await fetch(`/api/leads/${delId}`, { method: "DELETE" });
+      const res = await fetch(`/api/leads/${delId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
       toast.success("已删除");
       setDelOpen(false);
       loadLeads();

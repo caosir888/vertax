@@ -174,7 +174,9 @@ export default function ContentPage() {
 
   async function deleteItem() {
     try {
-      await fetch(`/api/content/${delId}`, { method: "DELETE" });
+      const res = await fetch(`/api/content/${delId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
       toast.success("已删除");
       loadItems();
     } catch {
@@ -184,11 +186,13 @@ export default function ContentPage() {
 
   async function updateStatus(itemId: string, status: string) {
     try {
-      await fetch(`/api/content/${itemId}`, {
+      const res = await fetch(`/api/content/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, save_version: false }),
       });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
       toast.success(status === "published" ? "已发布" : status === "review" ? "已提交审核" : "已退回草稿");
       loadItems();
     } catch {
@@ -308,8 +312,12 @@ export default function ContentPage() {
 
   async function copyVersion(v: Version) {
     const text = v.title ? `${v.title}\n\n${v.content}` : v.content;
-    await navigator.clipboard.writeText(text);
-    toast.success("已复制到剪贴板");
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      toast.success("已复制到剪贴板");
+    } else {
+      toast.error("请使用 HTTPS 访问以使用剪贴板");
+    }
   }
 
   function openAnalyze(text: string) {

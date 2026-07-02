@@ -38,21 +38,32 @@ export default function SiteDetailPage() {
   }, [id]);
 
   async function loadSite() {
-    const res = await fetch(`/api/sites/${id}`);
-    const json = await res.json();
-    if (json.data) setSite(json.data);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/sites/${id}`);
+      const json = await res.json();
+      if (json.data) setSite(json.data);
+    } catch {
+      toast.error("加载失败");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function getPages(): SitePage[] {
     if (!site) return [];
-    if (typeof site.pages === "string") return JSON.parse(site.pages);
+    if (typeof site.pages === "string") {
+      try { return JSON.parse(site.pages); }
+      catch { return []; }
+    }
     return site.pages;
   }
 
   function getSettings(): SiteSettings {
     if (!site) return {} as SiteSettings;
-    if (typeof site.settings === "string") return JSON.parse(site.settings);
+    if (typeof site.settings === "string") {
+      try { return JSON.parse(site.settings); }
+      catch { return {} as SiteSettings; }
+    }
     return site.settings;
   }
 
@@ -367,7 +378,7 @@ export default function SiteDetailPage() {
         )}
 
         {/* 设置视图 */}
-        {tab === "settings" && editSettings.companyName !== undefined && (
+        {tab === "settings" && site && (
           <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6">
             <h3 className="text-sm font-bold text-black mb-5">站点设置</h3>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -515,8 +526,12 @@ export default function SiteDetailPage() {
                     <button
                       onClick={() => {
                         const url = `${window.location.origin}/api/sites/${site.id}/preview`;
-                        navigator.clipboard.writeText(url);
-                        toast.success("链接已复制");
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(url);
+                          toast.success("链接已复制");
+                        } else {
+                          toast.error("请手动复制链接");
+                        }
                       }}
                       className="shrink-0 rounded-lg bg-black px-3 py-2 text-xs text-white hover:bg-zinc-800"
                     >
