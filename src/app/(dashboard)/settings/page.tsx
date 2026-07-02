@@ -84,7 +84,7 @@ export default function SettingsPage() {
       if (k.data) setApiKeys(k.data);
       if (l.data) setActivityLogs(l.data);
     } catch {
-      // 网络错误时保持上次数据
+      toast.error("设置信息加载失败");
     } finally {
       setLoading(false);
     }

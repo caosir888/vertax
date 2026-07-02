@@ -77,6 +77,7 @@ export default function LeadsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", source: "", notes: "" });
+  const [saving, setSaving] = useState(false);
 
   // 导入
   const [importOpen, setImportOpen] = useState(false);
@@ -100,7 +101,7 @@ export default function LeadsPage() {
       const json = await res.json();
       if (json.data) setLeads(json.data);
     } catch {
-      /* ignore */
+      toast.error("线索加载失败");
     } finally {
       setLoading(false);
     }
@@ -130,6 +131,7 @@ export default function LeadsPage() {
       toast.error("姓名不能为空");
       return;
     }
+    setSaving(true);
 
     try {
       let res: Response;
@@ -153,6 +155,8 @@ export default function LeadsPage() {
       loadLeads();
     } catch {
       toast.error("保存失败");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -371,9 +375,10 @@ export default function LeadsPage() {
                     ))}
 
                     {items.length === 0 && (
-                      <p className="text-xs text-zinc-300 text-center py-6">
-                        暂无
-                      </p>
+                      <div className="text-center py-8">
+                        <p className="text-2xl mb-2">📭</p>
+                        <p className="text-xs text-zinc-400">暂无线索</p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -451,8 +456,8 @@ export default function LeadsPage() {
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
                 取消
               </Button>
-              <Button onClick={saveLead} className="rounded-xl bg-black text-white hover:bg-zinc-800">
-                保存
+              <Button onClick={saveLead} disabled={saving} className="rounded-xl bg-black text-white hover:bg-zinc-800">
+                {saving ? "保存中..." : "保存"}
               </Button>
             </DialogFooter>
           </DialogContent>

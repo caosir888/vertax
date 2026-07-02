@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 interface AnalyticsData {
   stats: { total: number; published: number; review: number; draft: number; totalPublishes: number };
@@ -19,7 +20,7 @@ export default function AnalyticsPage() {
     fetch("/api/content/analytics")
       .then((r) => r.json())
       .then((json) => { if (json.data) setData(json.data); })
-      .catch(() => {})
+      .catch(() => { toast.error("数据分析加载失败"); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -76,7 +77,10 @@ export default function AnalyticsPage() {
               <div className="rounded-xl border border-zinc-200 bg-white p-6">
                 <h3 className="text-sm font-bold text-black mb-4">内容互动排行榜</h3>
                 {data.topContent.length === 0 ? (
-                  <p className="text-sm text-zinc-300 text-center py-8">暂无数据</p>
+                  <div className="text-center py-8">
+                    <p className="text-2xl mb-2">📊</p>
+                    <p className="text-xs text-zinc-400">暂无内容数据，去内容工坊发布内容吧</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {data.topContent.slice(0, 8).map((item, i) => {
@@ -122,7 +126,10 @@ export default function AnalyticsPage() {
                 <div className="rounded-xl border border-zinc-200 bg-white p-6">
                   <h3 className="text-sm font-bold text-black mb-4">发布平台分布</h3>
                   {Object.keys(data.platformCount).length === 0 ? (
-                    <p className="text-sm text-zinc-300 text-center py-8">暂无发布记录</p>
+                    <div className="text-center py-8">
+                      <p className="text-2xl mb-2">📤</p>
+                      <p className="text-xs text-zinc-400">暂无发布记录</p>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {Object.entries(data.platformCount).map(([platform, count]) => {
@@ -173,7 +180,10 @@ export default function AnalyticsPage() {
             <div className="mt-8 rounded-xl border border-zinc-200 bg-white p-6">
               <h3 className="text-sm font-bold text-black mb-4">最近更新内容</h3>
               {data.recentContents.length === 0 ? (
-                <p className="text-sm text-zinc-300 text-center py-8">暂无数据</p>
+                <div className="text-center py-8">
+                  <p className="text-2xl mb-2">📝</p>
+                  <p className="text-xs text-zinc-400">暂无最近内容</p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

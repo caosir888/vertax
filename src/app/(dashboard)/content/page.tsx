@@ -144,7 +144,7 @@ export default function ContentPage() {
       const res = await fetch(`/api/content?${params}`);
       const json = await res.json();
       if (json.data) setItems(json.data);
-    } catch { /* ignore */ }
+    } catch { toast.error("内容加载失败"); }
     finally { setLibLoading(false); }
   }
 

@@ -73,8 +73,18 @@ export default function MemoDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
-        <p className="text-zinc-400">加载中...</p>
+      <div className="min-h-screen bg-zinc-50">
+        <div className="border-b border-zinc-200 bg-white px-6 py-4">
+          <div className="h-5 w-20 animate-pulse rounded bg-zinc-200" />
+        </div>
+        <div className="mx-auto max-w-2xl px-4 py-8 space-y-4">
+          <div className="h-8 w-48 animate-pulse rounded bg-zinc-200" />
+          <div className="rounded-xl border border-zinc-200 bg-white p-8 space-y-3">
+            <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+            <div className="h-4 w-full animate-pulse rounded bg-zinc-200" />
+            <div className="h-4 w-3/4 animate-pulse rounded bg-zinc-200" />
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
@@ -45,6 +45,7 @@ export default function SitesPage() {
 
   // 创建流程
   const [step, setStep] = useState<"list" | "template" | "form" | "generating">("list");
+  const generatingRef = useRef(false);
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
 
@@ -63,7 +64,7 @@ export default function SitesPage() {
       const json = await res.json();
       if (json.data) setSites(json.data);
     } catch {
-      /* ignore */
+      toast.error("站点列表加载失败");
     } finally {
       setLoading(false);
     }
@@ -83,10 +84,12 @@ export default function SitesPage() {
   }
 
   async function generate() {
+    if (generatingRef.current) return;
     if (!settings.companyName.trim()) {
       toast.error("公司名称不能为空");
       return;
     }
+    generatingRef.current = true;
     setStep("generating");
     try {
       const res = await fetch("/api/sites/generate", {
@@ -106,6 +109,8 @@ export default function SitesPage() {
     } catch {
       toast.error("生成失败");
       setStep("form");
+    } finally {
+      generatingRef.current = false;
     }
   }
 

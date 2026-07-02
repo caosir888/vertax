@@ -77,7 +77,7 @@ export default function KnowledgePage() {
       const res = await fetch("/api/knowledge-bases");
       const json = await res.json();
       if (json.data) setKbs(json.data);
-    } catch { /* ignore */ }
+    } catch { toast.error("知识库加载失败"); }
   }
 
   async function loadDocs() {

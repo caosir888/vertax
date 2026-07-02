@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 interface DashboardData {
   totalLeads: number;
@@ -82,7 +83,7 @@ export default function DashboardPage() {
       .then((json) => {
         if (json.data) setData(json.data);
       })
-      .catch(() => {})
+      .catch(() => { toast.error("数据加载失败"); })
       .finally(() => setLoading(false));
   }, []);
 
