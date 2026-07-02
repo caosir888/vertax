@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { checkTeamPermission } from "@/lib/team-guard";
 
 // PATCH /api/team/members/[id] — 修改成员角色
 export async function PATCH(
@@ -13,6 +14,12 @@ export async function PATCH(
   }
 
   const { id } = await params;
+
+  const permit = await checkTeamPermission(user.id, user.team_id);
+  if (!permit.allowed) {
+    return NextResponse.json({ error: permit.error }, { status: 403 });
+  }
+
   const body = await request.json();
   const { role } = body;
 
@@ -62,6 +69,11 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const permit = await checkTeamPermission(user.id, user.team_id);
+  if (!permit.allowed) {
+    return NextResponse.json({ error: permit.error }, { status: 403 });
+  }
 
   // 验证该成员属于当前团队
   const { data: member } = await getSupabase()

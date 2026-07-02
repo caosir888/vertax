@@ -9,7 +9,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Toaster } from "sonner";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { SearchDialog } from "@/components/search-dialog";
+import { NotificationBell } from "@/components/notification-bell";
 
 const navLinks = [
   { href: "/dashboard", label: "概览", icon: "📊" },
@@ -58,6 +61,8 @@ function TopBar({
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-zinc-200 bg-white/80 backdrop-blur-sm px-6">
       <Breadcrumb />
+      <div className="flex items-center gap-1">
+      <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-zinc-100 transition-colors">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black text-xs text-white font-medium">
@@ -78,6 +83,7 @@ function TopBar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   );
 }
@@ -142,6 +148,8 @@ export default function DashboardLayout({
           <main key={pathname} className="flex-1 animate-page-enter">{children}</main>
         </div>
       </div>
+      <Toaster position="top-center" richColors />
+      <SearchDialog />
     </>
   );
 }

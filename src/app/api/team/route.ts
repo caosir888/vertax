@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { checkTeamPermission } from "@/lib/team-guard";
 
 // GET /api/team — 获取当前团队信息
 export async function GET() {
@@ -27,6 +28,11 @@ export async function PATCH(request: NextRequest) {
   const user = await getSession();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
+  const permit = await checkTeamPermission(user.id, user.team_id);
+  if (!permit.allowed) {
+    return NextResponse.json({ error: permit.error }, { status: 403 });
   }
 
   const body = await request.json();

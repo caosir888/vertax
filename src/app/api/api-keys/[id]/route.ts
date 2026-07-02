@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { checkTeamPermission } from "@/lib/team-guard";
 
 // DELETE /api/api-keys/[id] — 删除 API Key
 export async function DELETE(
@@ -13,6 +14,11 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const permit = await checkTeamPermission(user.id, user.team_id);
+  if (!permit.allowed) {
+    return NextResponse.json({ error: permit.error }, { status: 403 });
+  }
 
   // 验证该 key 属于当前团队
   const { data: key } = await getSupabase()

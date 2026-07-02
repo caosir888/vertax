@@ -60,6 +60,19 @@ create table api_keys (
 alter table api_keys enable row level security;
 create policy "api_keys_all" on api_keys for all using (true);
 
+-- 6. 通知表
+create table notifications (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  title text not null,
+  message text default '',
+  is_read boolean default false,
+  created_at timestamptz default now()
+);
+alter table notifications enable row level security;
+create policy "notifications_all" on notifications for all using (true);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;

@@ -58,16 +58,21 @@ export default function SettingsPage() {
 
   async function loadData() {
     setLoading(true);
-    const [teamRes, membersRes, keysRes] = await Promise.all([
-      fetch("/api/team"),
-      fetch("/api/team/members"),
-      fetch("/api/api-keys"),
-    ]);
-    const [t, m, k] = await Promise.all([teamRes.json(), membersRes.json(), keysRes.json()]);
-    if (t.data) setTeam(t.data);
-    if (m.data) setMembers(m.data);
-    if (k.data) setApiKeys(k.data);
-    setLoading(false);
+    try {
+      const [teamRes, membersRes, keysRes] = await Promise.all([
+        fetch("/api/team"),
+        fetch("/api/team/members"),
+        fetch("/api/api-keys"),
+      ]);
+      const [t, m, k] = await Promise.all([teamRes.json(), membersRes.json(), keysRes.json()]);
+      if (t.data) setTeam(t.data);
+      if (m.data) setMembers(m.data);
+      if (k.data) setApiKeys(k.data);
+    } catch {
+      // 网络错误时保持上次数据
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (loading) {

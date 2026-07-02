@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { checkTeamPermission } from "@/lib/team-guard";
 
 function generateApiKey(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let key = "vx_";
-  for (let i = 0; i < 32; i++) {
-    key += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return key;
+  return "vx_" + crypto.randomUUID().replace(/-/g, "");
 }
 
 // GET /api/api-keys — 获取团队的 API Keys
@@ -36,6 +32,11 @@ export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
+  const permit = await checkTeamPermission(user.id, user.team_id);
+  if (!permit.allowed) {
+    return NextResponse.json({ error: permit.error }, { status: 403 });
   }
 
   const body = await request.json();

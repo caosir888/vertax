@@ -47,20 +47,29 @@ export default function MemosPage() {
   async function addMemo() {
     if (!title.trim()) return;
     setAdding(true);
-    await fetch("/api/memos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), content: content.trim() }),
-    });
-    setTitle("");
-    setContent("");
-    setAdding(false);
-    fetchMemos();
+    try {
+      await fetch("/api/memos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), content: content.trim() }),
+      });
+      setTitle("");
+      setContent("");
+      fetchMemos();
+    } catch {
+      // ignore
+    } finally {
+      setAdding(false);
+    }
   }
 
   async function deleteMemo(id: string) {
-    await fetch(`/api/memos/${id}`, { method: "DELETE" });
-    fetchMemos();
+    try {
+      await fetch(`/api/memos/${id}`, { method: "DELETE" });
+      fetchMemos();
+    } catch {
+      // ignore
+    }
   }
 
   return (
