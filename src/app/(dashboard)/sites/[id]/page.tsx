@@ -189,8 +189,7 @@ export default function SiteDetailPage() {
     if (!site) return;
     const tpl = siteTemplates.find((t) => t.id === site.template_id);
     if (!tpl) return;
-    const html = renderSiteHTML(tpl, getPages(), getSettings());
-    const blob = new Blob([html], { type: "text/html; charset=utf-8" });
+    const html = renderSiteHTML(tpl, getPages(), getSettings(), site.id);    const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -225,7 +224,7 @@ export default function SiteDetailPage() {
   const pages = getPages();
   const settings = getSettings();
   const tpl = siteTemplates.find((t) => t.id === site.template_id);
-  const previewHTML = tpl ? renderSiteHTML(tpl, pages, settings) : "";
+  const previewHTML = tpl ? renderSiteHTML(tpl, pages, settings, site.id) : "";
 
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-12">
@@ -477,6 +476,39 @@ export default function SiteDetailPage() {
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
                 />
               </div>
+              <div className="sm:col-span-2 border-t border-zinc-100 pt-4 mt-2">
+                <p className="text-xs font-medium text-zinc-400 mb-3">在线咨询</p>
+              </div>
+              <div className="sm:col-span-2 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-black">启用 AI 聊天助手</p>
+                  <p className="text-xs text-zinc-400">在站点右下角显示智能问答按钮</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditSettings({ ...editSettings, enableChat: !editSettings.enableChat })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    editSettings.enableChat ? "bg-black" : "bg-zinc-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      editSettings.enableChat ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+              {editSettings.enableChat && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">欢迎语</label>
+                  <input
+                    value={editSettings.chatWelcomeMessage || ""}
+                    onChange={(e) => setEditSettings({ ...editSettings, chatWelcomeMessage: e.target.value })}
+                    placeholder="你好！有什么可以帮助你的？"
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
             <div className="mt-6 flex gap-3">
               <Button onClick={saveSettings} disabled={saving} className="rounded-xl bg-black text-white hover:bg-zinc-800">

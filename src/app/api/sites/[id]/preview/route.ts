@@ -31,7 +31,7 @@ export async function GET(
   const pages = typeof data.pages === "string" ? JSON.parse(data.pages) : data.pages;
   const settings: SiteSettings = typeof data.settings === "string" ? JSON.parse(data.settings) : data.settings;
 
-  const html = renderSiteHTML(template, pages, settings);
+  const html = renderSiteHTML(template, pages, settings, id);
 
   return new NextResponse(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },

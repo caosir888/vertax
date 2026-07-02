@@ -22,6 +22,8 @@ export interface SiteSettings {
   seoTitle: string;
   seoDescription: string;
   ogImage: string;
+  enableChat?: boolean;
+  chatWelcomeMessage?: string;
 }
 
 export const siteTemplates: SiteTemplate[] = [
@@ -110,7 +112,8 @@ export function parseSiteContent(text: string): { title: string; slug: string; c
 export function renderSiteHTML(
   template: SiteTemplate,
   pages: { title: string; slug: string; content: string }[],
-  settings: SiteSettings
+  settings: SiteSettings,
+  siteId?: string
 ): string {
   const navLinks = pages
     .map((p) => `<a href="/${p.slug}" class="nav-link">${p.title}</a>`)
@@ -189,6 +192,11 @@ export function renderSiteHTML(
       <p>${settings.contactEmail} | ${settings.contactPhone}</p>
     </div>
   </footer>
+  ${
+    settings.enableChat && siteId
+      ? chatWidgetHTML(siteId, settings.chatWelcomeMessage || "你好！有什么可以帮助你的？")
+      : ""
+  }
 </body>
 </html>`;
 }
@@ -202,4 +210,161 @@ function markdownToHTML(md: string): string {
     .replace(/^- (.+)$/gm, "<li>$1</li>")
     .replace(/\n\n/g, "</p><p>")
     .replace(/^(?!<[hli\/])(.+)$/gm, "<p>$1</p>");
+}
+
+function chatWidgetHTML(siteId: string, welcomeMessage: string): string {
+  return `
+<style>
+  .vertax-chat-btn { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; z-index: 9999; transition: transform 0.2s; }
+  .vertax-chat-btn:hover { transform: scale(1.08); }
+  .vertax-chat-panel { position: fixed; bottom: 96px; right: 24px; width: 380px; max-width: calc(100vw - 48px); height: 520px; max-height: calc(100vh - 140px); background: white; border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.16); z-index: 9998; display: none; flex-direction: column; overflow: hidden; font-size: 14px; }
+  .vertax-chat-panel.open { display: flex; }
+  .vertax-chat-header { background: var(--primary); color: white; padding: 16px 20px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .vertax-chat-close { background: none; border: none; color: white; cursor: pointer; font-size: 18px; opacity: 0.8; }
+  .vertax-chat-close:hover { opacity: 1; }
+  .vertax-chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .vertax-chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; line-height: 1.5; word-break: break-word; }
+  .vertax-chat-bubble.user { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+  .vertax-chat-bubble.bot { align-self: flex-start; background: #f3f4f6; color: #1a1a1a; border-bottom-left-radius: 4px; }
+  .vertax-chat-bubble.bot p { margin: 0; color: #1a1a1a; }
+  .vertax-chat-bubble.bot p + p { margin-top: 0.5em; }
+  .vertax-chat-typing { align-self: flex-start; display: flex; gap: 4px; padding: 10px 14px; }
+  .vertax-chat-typing span { width: 8px; height: 8px; background: #aaa; border-radius: 50%; animation: vertax-bounce 1.4s infinite ease-in-out both; }
+  .vertax-chat-typing span:nth-child(1) { animation-delay: -0.32s; }
+  .vertax-chat-typing span:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes vertax-bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+  .vertax-chat-input-wrap { border-top: 1px solid #e5e5e5; padding: 12px 16px; display: flex; gap: 8px; }
+  .vertax-chat-input-wrap input { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 14px; outline: none; }
+  .vertax-chat-input-wrap input:focus { border-color: var(--primary); }
+  .vertax-chat-input-wrap button { background: var(--primary); color: white; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600; font-size: 14px; }
+  .vertax-chat-input-wrap button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+<div id="vertax-chat-btn" class="vertax-chat-btn" title="在线咨询">💬</div>
+<div id="vertax-chat-panel" class="vertax-chat-panel">
+  <div class="vertax-chat-header">
+    <span>在线咨询</span>
+    <button id="vertax-chat-close" class="vertax-chat-close">✕</button>
+  </div>
+  <div id="vertax-chat-messages" class="vertax-chat-messages"></div>
+  <div class="vertax-chat-input-wrap">
+    <input id="vertax-chat-input" type="text" placeholder="输入你的问题…" />
+    <button id="vertax-chat-send">发送</button>
+  </div>
+</div>
+<script>
+(function() {
+  var siteId = ${JSON.stringify(siteId)};
+  var sessionId = localStorage.getItem("vertax_site_chat_" + siteId) || "";
+  var welcomeMessage = ${JSON.stringify(welcomeMessage)};
+  var loading = false;
+  var history = [];
+
+  var btn = document.getElementById("vertax-chat-btn");
+  var panel = document.getElementById("vertax-chat-panel");
+  var closeBtn = document.getElementById("vertax-chat-close");
+  var messagesEl = document.getElementById("vertax-chat-messages");
+  var inputEl = document.getElementById("vertax-chat-input");
+  var sendBtn = document.getElementById("vertax-chat-send");
+
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function simpleMarkdown(text) {
+    return text
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>")
+      .replace(/\\n\\n/g, "</p><p>")
+      .replace(/\\n/g, "<br>")
+      .replace(/^- (.+)$/gm, "<li>$1</li>")
+      .replace(/^(?!<[li]|<p|<strong|<br)(.+)$/gm, "<p>$1</p>");
+  }
+
+  function addBubble(text, type) {
+    var div = document.createElement("div");
+    div.className = "vertax-chat-bubble " + type;
+    div.innerHTML = type === "bot" ? simpleMarkdown(text) : escapeHtml(text);
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function showTyping() {
+    var div = document.createElement("div");
+    div.className = "vertax-chat-typing";
+    div.id = "vertax-chat-typing";
+    div.innerHTML = "<span></span><span></span><span></span>";
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function hideTyping() {
+    var el = document.getElementById("vertax-chat-typing");
+    if (el) el.remove();
+  }
+
+  function setLoading(v) {
+    loading = v;
+    sendBtn.disabled = v;
+    inputEl.disabled = v;
+  }
+
+  function addWelcome() {
+    if (welcomeMessage) {
+      addBubble(welcomeMessage, "bot");
+    }
+  }
+
+  async function sendMessage() {
+    var text = inputEl.value.trim();
+    if (!text || loading) return;
+    inputEl.value = "";
+    addBubble(text, "user");
+    history.push({ role: "user", content: text });
+    setLoading(true);
+    showTyping();
+
+    try {
+      var resp = await fetch("/api/sites/" + siteId + "/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text, session_id: sessionId, history: history })
+      });
+      var json = await resp.json();
+      hideTyping();
+
+      if (json.data) {
+        sessionId = json.data.session_id || sessionId;
+        if (sessionId) {
+          localStorage.setItem("vertax_site_chat_" + siteId, sessionId);
+        }
+        var answer = json.data.answer || "抱歉，我暂时无法回答这个问题。";
+        addBubble(answer, "bot");
+        history.push({ role: "assistant", content: answer });
+      } else {
+        addBubble("抱歉，出了点问题，请稍后再试。", "bot");
+      }
+    } catch (e) {
+      hideTyping();
+      addBubble("网络错误，请稍后再试。", "bot");
+    }
+    setLoading(false);
+  }
+
+  btn.addEventListener("click", function() {
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open") && !messagesEl.children.length) {
+      addWelcome();
+    }
+  });
+
+  closeBtn.addEventListener("click", function() {
+    panel.classList.remove("open");
+  });
+
+  sendBtn.addEventListener("click", sendMessage);
+  inputEl.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+})();
+</script>`;
 }
