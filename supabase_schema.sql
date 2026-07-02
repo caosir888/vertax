@@ -16,6 +16,9 @@ create policy "users_all" on users for all using (true);
 create table tenants (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  company_name text,
+  industry text,
+  logo_url text,
   created_at timestamptz default now()
 );
 alter table tenants enable row level security;
@@ -44,3 +47,21 @@ create table memos (
 );
 alter table memos enable row level security;
 create policy "memos_all" on memos for all using (true);
+
+-- 5. API Key 表
+create table api_keys (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  name text not null,
+  key text unique not null,
+  created_at timestamptz default now(),
+  last_used_at timestamptz
+);
+alter table api_keys enable row level security;
+create policy "api_keys_all" on api_keys for all using (true);
+
+-- ==================== 迁移（Day 25） ====================
+-- 如果 tenants 表已存在，执行以下语句添加新字段：
+-- alter table tenants add column if not exists company_name text;
+-- alter table tenants add column if not exists industry text;
+-- alter table tenants add column if not exists logo_url text;

@@ -33,6 +33,38 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+// ========== 团队相关 ==========
+
+export interface Team {
+  id: string;
+  name: string;
+  company_name?: string;
+  industry?: string;
+  logo_url?: string;
+  created_at: string;
+}
+
+export interface TeamMember {
+  id: string;
+  team_id: string;
+  user_id: string;
+  role: Role;
+  user_name: string;
+  user_email: string;
+  created_at: string;
+}
+
+// ========== API Key 相关 ==========
+
+export interface ApiKey {
+  id: string;
+  team_id: string;
+  name: string;
+  key: string;
+  created_at: string;
+  last_used_at?: string;
+}
+
 // ========== 通用类型 ==========
 
 export type Role = "owner" | "admin" | "editor" | "viewer";
