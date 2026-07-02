@@ -182,6 +182,34 @@ create index if not exists document_chunks_embedding_idx
   using ivfflat (embedding vector_cosine_ops)
   with (lists = 100);
 
+-- 17. 内容库表（Day 38 — 内容管理）
+create table contents (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  template_id text default '',
+  title text not null default '未命名',
+  content text not null default '',
+  language text default 'zh-CN',
+  status text default 'draft' check (status in ('draft', 'review', 'published')),
+  tags text[] default '{}',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table contents enable row level security;
+create policy "contents_all" on contents for all using (true);
+
+-- 18. 内容版本表（版本历史 + 回退）
+create table content_versions (
+  id uuid primary key default gen_random_uuid(),
+  content_id uuid references contents(id) on delete cascade,
+  version_number int not null,
+  content text not null,
+  created_at timestamptz default now()
+);
+alter table content_versions enable row level security;
+create policy "content_versions_all" on content_versions for all using (true);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;
