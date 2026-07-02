@@ -26,17 +26,23 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, email, password, confirmPassword }),
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        setError("服务器返回异常: " + (text.substring(0, 200) || "空响应"));
+        return;
+      }
 
       if (!res.ok) {
         setError(json.error || "注册失败");
         return;
       }
 
-      // 注册成功 → 自动登录 → 跳转 dashboard
       router.push("/dashboard");
-    } catch {
-      setError("网络错误，请稍后重试");
+    } catch (err) {
+      setError("网络错误: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setLoading(false);
     }
