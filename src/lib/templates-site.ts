@@ -176,6 +176,16 @@ export function renderSiteHTML(
       h1 { font-size: 1.75rem; }
       .page-section { padding: 48px 0; }
     }
+    .contact-section { background: #f9fafb; padding: 80px 0; }
+    .contact-form { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .contact-form input, .contact-form textarea { width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; outline: none; font-family: inherit; }
+    .contact-form input:focus, .contact-form textarea:focus { border-color: var(--primary); }
+    .contact-form textarea { min-height: 120px; resize: vertical; }
+    .contact-form button { background: var(--primary); color: white; border: none; padding: 14px 32px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .contact-form button:hover { opacity: 0.9; }
+    .contact-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .contact-msg { text-align: center; font-size: 0.875rem; margin-top: 8px; }
+    .contact-info { text-align: center; margin-top: 32px; color: #888; font-size: 0.875rem; }
   </style>
 </head>
 <body>
@@ -186,6 +196,67 @@ export function renderSiteHTML(
     </div>
   </header>
   ${pageHTML}
+  <section id="contact" class="contact-section">
+    <div class="container">
+      <h1 style="text-align:center;margin-bottom:8px;">联系我们</h1>
+      <p style="text-align:center;color:#888;margin-bottom:32px;">有任何问题或合作意向，欢迎留言</p>
+      <form id="vertax-contact-form" class="contact-form" onsubmit="return false;">
+        <input type="text" name="name" placeholder="您的姓名" required />
+        <input type="email" name="email" placeholder="您的邮箱" required />
+        <textarea name="message" placeholder="请描述您的需求…" required></textarea>
+        <button type="submit" id="vertax-contact-btn">发送留言</button>
+        <p id="vertax-contact-msg" class="contact-msg"></p>
+      </form>
+      <div class="contact-info">
+        ${settings.contactEmail ? `<p>📧 ${settings.contactEmail}</p>` : ""}
+        ${settings.contactPhone ? `<p>📞 ${settings.contactPhone}</p>` : ""}
+        ${settings.contactAddress ? `<p>📍 ${settings.contactAddress}</p>` : ""}
+      </div>
+    </div>
+  </section>
+  ${
+    siteId
+      ? `<script>
+(function() {
+  var form = document.getElementById("vertax-contact-form");
+  var btn = document.getElementById("vertax-contact-btn");
+  var msg = document.getElementById("vertax-contact-msg");
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    var name = form.name.value.trim();
+    var email = form.email.value.trim();
+    var message = form.message.value.trim();
+    if (!name || !email || !message) return;
+    btn.disabled = true;
+    btn.textContent = "发送中...";
+    msg.textContent = "";
+    msg.style.color = "";
+    try {
+      var resp = await fetch("/api/sites/${siteId}/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name, email: email, message: message })
+      });
+      var json = await resp.json();
+      if (resp.ok) {
+        msg.textContent = "发送成功，我们会尽快回复！";
+        msg.style.color = "#16a34a";
+        form.reset();
+      } else {
+        msg.textContent = json.error || "发送失败，请稍后再试";
+        msg.style.color = "#dc2626";
+      }
+    } catch (err) {
+      msg.textContent = "网络错误，请稍后再试";
+      msg.style.color = "#dc2626";
+    }
+    btn.disabled = false;
+    btn.textContent = "发送留言";
+  });
+})();
+</script>`
+      : ""
+  }
   <footer>
     <div class="container">
       <p>&copy; ${new Date().getFullYear()} ${settings.companyName}. All rights reserved.</p>

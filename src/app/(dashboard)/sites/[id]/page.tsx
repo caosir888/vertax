@@ -25,12 +25,14 @@ export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [site, setSite] = useState<Site | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"edit" | "preview" | "settings" | "deploy">("preview");
+  const [tab, setTab] = useState<"edit" | "preview" | "settings" | "deploy" | "inquiries">("preview");
   const [editingPage, setEditingPage] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [editSettings, setEditSettings] = useState<SiteSettings>({} as SiteSettings);
   const [domain, setDomain] = useState("");
+  const [inquiries, setInquiries] = useState<{ id: string; name: string; email: string; message: string; created_at: string }[]>([]);
+  const [inquiriesLoading, setInquiriesLoading] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
 
   useEffect(() => {
@@ -46,6 +48,19 @@ export default function SiteDetailPage() {
       toast.error("加载失败");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadInquiries() {
+    setInquiriesLoading(true);
+    try {
+      const res = await fetch(`/api/sites/${id}/contact`);
+      const json = await res.json();
+      if (json.data) setInquiries(json.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setInquiriesLoading(false);
     }
   }
 
@@ -290,6 +305,14 @@ export default function SiteDetailPage() {
             }`}
           >
             部署
+          </button>
+          <button
+            onClick={() => { loadInquiries(); setTab("inquiries"); }}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "inquiries" ? "bg-black text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            询盘
           </button>
         </div>
 
@@ -632,6 +655,47 @@ export default function SiteDetailPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 询盘视图 */}
+        {tab === "inquiries" && (
+          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-black">客户询盘</h3>
+              <button
+                onClick={loadInquiries}
+                disabled={inquiriesLoading}
+                className="text-xs text-indigo-500 hover:text-indigo-700"
+              >
+                {inquiriesLoading ? "刷新中..." : "刷新"}
+              </button>
+            </div>
+
+            {inquiries.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-3xl mb-2">📬</p>
+                <p className="text-sm text-zinc-400">暂无询盘</p>
+                <p className="text-xs text-zinc-300 mt-1">访客通过站点联系表单提交后将显示在这里</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {inquiries.map((inq) => (
+                  <div key={inq.id} className="rounded-xl border border-zinc-100 bg-zinc-50 p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-medium text-black">{inq.name}</p>
+                        <p className="text-xs text-zinc-400">{inq.email}</p>
+                      </div>
+                      <span className="text-xs text-zinc-400">
+                        {new Date(inq.created_at).toLocaleString("zh-CN")}
+                      </span>
+                    </div>
+                    <p className="text-sm text-zinc-600 leading-relaxed">{inq.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
