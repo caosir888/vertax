@@ -4,8 +4,13 @@ import { getSession } from "@/lib/auth";
 import { getEmbedding } from "@/lib/embedding";
 import { chat, buildRagPrompt } from "@/lib/llm";
 
-// POST /api/chat — RAG 问答
-// Body: { question: "问题", topK?: 5, document_id?: "限制某个文档" }
+// POST /api/chat — RAG 问答（自动保存到聊天历史）
+// Body: {
+//   question: "问题", topK?: 5,
+//   session_id?: "已有会话ID，不传则自动创建",
+//   knowledge_base_id?: "限制某个知识库",
+//   document_id?: "限制某个文档"
+// }
 export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) {
@@ -13,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { question, topK = 5, document_id } = body;
+  const { question, topK = 5, session_id, knowledge_base_id, document_id } = body;
 
   if (!question || !question.trim()) {
     return NextResponse.json({ error: "请输入问题" }, { status: 400 });
@@ -30,21 +35,45 @@ export async function POST(request: NextRequest) {
       match_threshold: 0.3,
       match_count: topK,
       filter_team_id: user.team_id,
+      filter_knowledge_base_id: knowledge_base_id || null,
     });
 
     if (rpcError) {
-      // 回退：内存余弦相似度
-      let query = getSupabase()
-        .from("document_chunks")
-        .select("id, content, chunk_index, document_id, embedding");
+      // 回退：通过 documents 表获取 team 内的文档
+      let docsQuery = getSupabase()
+        .from("documents")
+        .select("id")
+        .eq("team_id", user.team_id);
 
+      if (knowledge_base_id) {
+        docsQuery = docsQuery.eq("knowledge_base_id", knowledge_base_id);
+      }
       if (document_id) {
-        query = query.eq("document_id", document_id);
+        docsQuery = docsQuery.eq("id", document_id);
       }
 
-      const { data: rawData, error: rawError } = await query
+      const { data: teamDocs, error: docsError } = await docsQuery;
+
+      if (docsError) {
+        return NextResponse.json({ error: docsError.message }, { status: 500 });
+      }
+
+      const docIds = teamDocs?.map((d: { id: string }) => d.id) || [];
+      if (docIds.length === 0) {
+        return NextResponse.json({
+          data: {
+            answer: "知识库中暂无相关内容，请先上传文档并完成向量化。",
+            sources: [],
+          },
+        });
+      }
+
+      const { data: rawData, error: rawError } = await getSupabase()
+        .from("document_chunks")
+        .select("id, content, chunk_index, document_id, embedding")
+        .in("document_id", docIds)
         .not("embedding", "is", null)
-        .limit(100);
+        .limit(topK * 20);
 
       if (rawError) {
         return NextResponse.json({ error: rawError.message }, { status: 500 });
@@ -71,45 +100,67 @@ export async function POST(request: NextRequest) {
       chunks = rpcData || [];
     }
 
-    if (chunks.length === 0) {
-      return NextResponse.json({
-        data: {
-          answer: "知识库中暂无相关内容，请先上传文档并完成向量化。",
-          sources: [],
-        },
-      });
-    }
-
     // 获取文档名称
     const docIds = [...new Set(chunks.map((c) => c.document_id))];
-    const { data: docs } = await getSupabase()
-      .from("documents")
-      .select("id, name")
-      .in("id", docIds);
+    const docMap = new Map<string, string>();
+    if (docIds.length > 0) {
+      const { data: docs } = await getSupabase()
+        .from("documents")
+        .select("id, name")
+        .in("id", docIds);
+      (docs || []).forEach((d: { id: string; name: string }) => docMap.set(d.id, d.name));
+    }
 
-    const docMap = new Map((docs || []).map((d: { id: string; name: string }) => [d.id, d.name]));
+    // 构建 RAG Prompt + 调用 LLM
+    let answer: string;
+    let sources: { document_id: string; document_name: string; chunk_index: number; content: string; similarity: number }[] = [];
 
-    // 构建 RAG Prompt
-    const ragChunks = chunks.map((c) => ({
-      content: c.content,
-      document_name: docMap.get(c.document_id) || "未知文档",
-      chunk_index: c.chunk_index,
-    }));
+    if (chunks.length === 0) {
+      answer = "知识库中暂无相关内容，请先上传文档并完成向量化。";
+    } else {
+      const ragChunks = chunks.map((c) => ({
+        content: c.content,
+        document_name: docMap.get(c.document_id) || "未知文档",
+        chunk_index: c.chunk_index,
+      }));
 
-    const messages = buildRagPrompt(question.trim(), ragChunks);
-    const answer = await chat(messages);
+      const messages = buildRagPrompt(question.trim(), ragChunks);
+      answer = await chat(messages);
 
-    // 来源引用
-    const sources = chunks.map((c) => ({
-      document_id: c.document_id,
-      document_name: docMap.get(c.document_id) || "未知文档",
-      chunk_index: c.chunk_index,
-      content: c.content.substring(0, 200),
-      similarity: c.similarity,
-    }));
+      sources = chunks.map((c) => ({
+        document_id: c.document_id,
+        document_name: docMap.get(c.document_id) || "未知文档",
+        chunk_index: c.chunk_index,
+        content: c.content.substring(0, 200),
+        similarity: c.similarity,
+      }));
+    }
+
+    // 保存到聊天历史
+    let sid = session_id;
+    if (!sid) {
+      const { data: newSession } = await getSupabase()
+        .from("chat_sessions")
+        .insert({
+          team_id: user.team_id,
+          user_id: user.id,
+          knowledge_base_id: knowledge_base_id || null,
+          title: question.trim().substring(0, 50),
+        })
+        .select()
+        .single();
+      sid = newSession?.id;
+    }
+
+    if (sid) {
+      await getSupabase().from("chat_messages").insert([
+        { session_id: sid, role: "user", content: question.trim() },
+        { session_id: sid, role: "assistant", content: answer, sources },
+      ]);
+    }
 
     return NextResponse.json({
-      data: { answer, sources },
+      data: { answer, sources, session_id: sid },
     });
   } catch (err) {
     return NextResponse.json(

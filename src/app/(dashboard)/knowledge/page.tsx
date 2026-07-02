@@ -16,6 +16,13 @@ interface Document {
   created_at: string;
 }
 
+interface KnowledgeBase {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
 const statusLabels: Record<string, { label: string; color: string }> = {
   ready: { label: "待解析", color: "bg-zinc-100 text-zinc-600" },
   processing: { label: "解析中", color: "bg-blue-100 text-blue-700" },
@@ -40,19 +47,41 @@ function formatSize(bytes: number): string {
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState<Document[]>([]);
+  const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
+  const [selectedKbId, setSelectedKbId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delId, setDelId] = useState("");
+  const [kbOpen, setKbOpen] = useState(false);
+  const [kbForm, setKbForm] = useState({ name: "", description: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadDocs(); }, []);
+  useEffect(() => { loadKbs(); }, []);
+
+  useEffect(() => {
+    if (kbs.length > 0 && !selectedKbId) {
+      setSelectedKbId(kbs[0].id);
+    }
+  }, [kbs]);
+
+  useEffect(() => { loadDocs(); }, [selectedKbId]);
+
+  async function loadKbs() {
+    try {
+      const res = await fetch("/api/knowledge-bases");
+      const json = await res.json();
+      if (json.data) setKbs(json.data);
+    } catch { /* ignore */ }
+  }
 
   async function loadDocs() {
     setLoading(true);
     try {
-      const res = await fetch("/api/documents");
+      let url = "/api/documents";
+      if (selectedKbId) url += `?knowledge_base_id=${selectedKbId}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json.data) setDocs(json.data);
     } catch { /* ignore */ }
@@ -60,10 +89,15 @@ export default function KnowledgePage() {
   }
 
   const doUpload = useCallback(async (file: File) => {
+    if (!selectedKbId) {
+      toast.error("请先选择或创建一个知识库");
+      return;
+    }
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("knowledge_base_id", selectedKbId);
       const res = await fetch("/api/documents", { method: "POST", body: formData });
       const json = await res.json();
       if (json.error) {
@@ -77,7 +111,7 @@ export default function KnowledgePage() {
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [selectedKbId]);
 
   function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -134,14 +168,41 @@ export default function KnowledgePage() {
     }
   }
 
+  async function createKb() {
+    if (!kbForm.name.trim()) {
+      toast.error("请输入知识库名称");
+      return;
+    }
+    try {
+      const res = await fetch("/api/knowledge-bases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(kbForm),
+      });
+      const json = await res.json();
+      if (json.error) {
+        toast.error(json.error);
+      } else {
+        toast.success("知识库创建成功");
+        setKbForm({ name: "", description: "" });
+        setKbOpen(false);
+        loadKbs();
+        setSelectedKbId(json.data.id);
+      }
+    } catch {
+      toast.error("创建失败");
+    }
+  }
+
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-3xl">
-        <div className="flex items-center justify-between">
+        {/* 顶部：标题 + 知识库选择 */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-black">知识库</h1>
-            <p className="mt-2 text-sm text-zinc-500">
-              上传 PDF、Word、TXT、Markdown 文档，AI 将自动解析用于智能问答
+            <p className="mt-1 text-sm text-zinc-500">
+              上传文档，AI 自动解析并向量化用于智能问答
             </p>
           </div>
           <a
@@ -152,13 +213,37 @@ export default function KnowledgePage() {
           </a>
         </div>
 
+        {/* 知识库选择器 */}
+        <div className="mt-6 flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-zinc-500">当前知识库：</span>
+          {kbs.length === 0 ? (
+            <p className="text-sm text-zinc-400">暂无知识库，请先创建</p>
+          ) : (
+            <select
+              value={selectedKbId}
+              onChange={(e) => setSelectedKbId(e.target.value)}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm focus:border-black focus:outline-none"
+            >
+              {kbs.map((kb) => (
+                <option key={kb.id} value={kb.id}>{kb.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => { setKbForm({ name: "", description: "" }); setKbOpen(true); }}
+            className="text-sm text-indigo-500 hover:text-indigo-700 transition-colors"
+          >
+            + 新建知识库
+          </button>
+        </div>
+
         {/* ========== 上传区域 ========== */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`mt-6 cursor-pointer rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
+          className={`mt-4 cursor-pointer rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
             dragOver
               ? "border-black bg-zinc-50"
               : "border-zinc-300 hover:border-zinc-400"
@@ -274,6 +359,41 @@ export default function KnowledgePage() {
         confirmLabel="删除"
         onConfirm={deleteDoc}
       />
+
+      {/* 新建知识库对话框 */}
+      {kbOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-black">新建知识库</h2>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">名称</label>
+                <input
+                  value={kbForm.name}
+                  onChange={(e) => setKbForm({ ...kbForm, name: e.target.value })}
+                  placeholder="如：产品知识库"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                  onKeyDown={(e) => e.key === "Enter" && createKb()}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">描述（可选）</label>
+                <input
+                  value={kbForm.description}
+                  onChange={(e) => setKbForm({ ...kbForm, description: e.target.value })}
+                  placeholder="简要描述知识库用途"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                  onKeyDown={(e) => e.key === "Enter" && createKb()}
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setKbOpen(false)}>取消</Button>
+              <Button onClick={createKb}>创建</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

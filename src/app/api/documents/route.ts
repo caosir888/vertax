@@ -3,17 +3,25 @@ import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 
 // GET /api/documents — 获取团队文档列表
-export async function GET() {
+// Query: ?knowledge_base_id=xxx（可选，筛选某个知识库）
+export async function GET(request: NextRequest) {
   const user = await getSession();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  const { data, error } = await getSupabase()
+  const kbId = request.nextUrl.searchParams.get("knowledge_base_id");
+
+  let query = getSupabase()
     .from("documents")
     .select("*")
-    .eq("team_id", user.team_id)
-    .order("created_at", { ascending: false });
+    .eq("team_id", user.team_id);
+
+  if (kbId) {
+    query = query.eq("knowledge_base_id", kbId);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -40,6 +48,8 @@ export async function POST(request: NextRequest) {
   if (!file) {
     return NextResponse.json({ error: "未找到文件" }, { status: 400 });
   }
+
+  const knowledgeBaseId = (formData.get("knowledge_base_id") as string) || null;
 
   // 文件类型校验
   const allowedTypes = [
@@ -89,6 +99,7 @@ export async function POST(request: NextRequest) {
       file_size: file.size,
       file_type: file.type || file.name.split(".").pop() || "",
       status: "ready",
+      knowledge_base_id: knowledgeBaseId,
     })
     .select()
     .single();

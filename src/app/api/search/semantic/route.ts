@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getEmbedding } from "@/lib/embedding";
 
 // POST /api/search/semantic — 语义搜索
-// Body: { query: "问题", topK?: 5 }
+// Body: { query: "问题", topK?: 5, knowledge_base_id?: "xxx" }
 export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { query, topK = 5 } = body;
+  const { query, topK = 5, knowledge_base_id } = body;
 
   if (!query || !query.trim()) {
     return NextResponse.json({ error: "请输入搜索内容" }, { status: 400 });
@@ -29,17 +29,37 @@ export async function POST(request: NextRequest) {
       match_threshold: 0.3,
       match_count: topK,
       filter_team_id: user.team_id,
+      filter_knowledge_base_id: knowledge_base_id || null,
     });
 
     if (error) {
-      // 如果 RPC 函数不存在，回退到 raw SQL
+      // 回退：通过 documents 表获取 team 内的文档ID，再查分块
+      let docsQuery = getSupabase()
+        .from("documents")
+        .select("id")
+        .eq("team_id", user.team_id);
+
+      if (knowledge_base_id) {
+        docsQuery = docsQuery.eq("knowledge_base_id", knowledge_base_id);
+      }
+
+      const { data: teamDocs, error: docsError } = await docsQuery;
+
+      if (docsError) {
+        return NextResponse.json({ error: docsError.message }, { status: 500 });
+      }
+
+      const docIds = teamDocs?.map((d: { id: string }) => d.id) || [];
+      if (docIds.length === 0) {
+        return NextResponse.json({ data: [] });
+      }
+
       const { data: rawData, error: rawError } = await getSupabase()
         .from("document_chunks")
         .select("id, content, chunk_index, document_id, embedding")
-        .eq("documents.team_id", user.team_id)
+        .in("document_id", docIds)
         .not("embedding", "is", null)
-        .order("embedding", { ascending: false })
-        .limit(topK);
+        .limit(topK * 20);
 
       if (rawError) {
         return NextResponse.json({ error: rawError.message }, { status: 500 });

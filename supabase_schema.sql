@@ -99,10 +99,48 @@ create table document_chunks (
 alter table document_chunks enable row level security;
 create policy "document_chunks_all" on document_chunks for all using (true);
 
--- 9. 开启 pgvector 扩展（向量搜索）
+-- 9. 知识库表（Day 33 — 多知识库管理）
+create table knowledge_bases (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  name text not null,
+  description text default '',
+  created_at timestamptz default now()
+);
+alter table knowledge_bases enable row level security;
+create policy "knowledge_bases_all" on knowledge_bases for all using (true);
+
+-- 10. documents 加 knowledge_base_id
+alter table documents add column if not exists knowledge_base_id uuid references knowledge_bases(id) on delete set null;
+
+-- 11. 聊天会话表（Day 33 — 问答历史）
+create table chat_sessions (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  knowledge_base_id uuid references knowledge_bases(id) on delete set null,
+  title text not null default '新对话',
+  created_at timestamptz default now()
+);
+alter table chat_sessions enable row level security;
+create policy "chat_sessions_all" on chat_sessions for all using (true);
+
+-- 12. 聊天消息表
+create table chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid references chat_sessions(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  sources jsonb default '[]',
+  created_at timestamptz default now()
+);
+alter table chat_messages enable row level security;
+create policy "chat_messages_all" on chat_messages for all using (true);
+
+-- 13. 开启 pgvector 扩展（向量搜索）
 create extension if not exists vector;
 
--- 10. 给 document_chunks 加 embedding 列（1536 维 = OpenAI text-embedding-3-small）
+-- 14. 给 document_chunks 加 embedding 列（1536 维 = OpenAI text-embedding-3-small）
 alter table document_chunks add column if not exists embedding vector(1536);
 
 -- ==================== 迁移（Day 25） ====================
