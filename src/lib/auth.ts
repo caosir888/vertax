@@ -8,14 +8,15 @@ const secret = new TextEncoder().encode(
 const COOKIE_NAME = "vertax_token";
 
 export interface SessionUser {
-  id: number;
+  id: string;
   name: string;
   email: string;
+  team_id?: string;
 }
 
 // 生成 JWT token
 export async function createToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ id: user.id, name: user.name, email: user.email })
+  return new SignJWT({ id: user.id, name: user.name, email: user.email, team_id: user.team_id })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")

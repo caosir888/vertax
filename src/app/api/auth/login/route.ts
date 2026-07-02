@@ -10,8 +10,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "邮箱和密码不能为空" }, { status: 400 });
   }
 
-  // 查数据库，找匹配的邮箱和密码
-  const { data: user, error } = await getSupabase()
+  const supabase = getSupabase();
+
+  const { data: user, error } = await supabase
     .from("users")
     .select("id, name, email")
     .eq("email", email)
@@ -22,8 +23,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
   }
 
-  // 登录成功 → 设置 JWT cookie
-  await setSessionCookie(user);
+  // 查用户所属团队
+  const { data: membership } = await supabase
+    .from("team_members")
+    .select("team_id, role")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  return NextResponse.json({ data: user });
+  const sessionUser = { ...user, team_id: membership?.team_id };
+
+  await setSessionCookie(sessionUser);
+
+  return NextResponse.json({ data: sessionUser });
 }
