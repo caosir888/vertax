@@ -25,10 +25,11 @@ export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [site, setSite] = useState<Site | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"edit" | "preview">("preview");
+  const [tab, setTab] = useState<"edit" | "preview" | "settings">("preview");
   const [editingPage, setEditingPage] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editSettings, setEditSettings] = useState<SiteSettings>({} as SiteSettings);
 
   useEffect(() => {
     loadSite();
@@ -73,6 +74,59 @@ export default function SiteDetailPage() {
       toast.success("已保存");
       setSite({ ...site, pages });
       setEditingPage(null);
+    } catch {
+      toast.error("保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function movePage(index: number, direction: -1 | 1) {
+    if (!site) return;
+    const pages = getPages();
+    const target = index + direction;
+    if (target < 0 || target >= pages.length) return;
+
+    const temp = pages[index];
+    pages[index] = pages[target];
+    pages[target] = temp;
+
+    try {
+      const res = await fetch(`/api/sites/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pages }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setSite(json.data);
+        if (editingPage === index) setEditingPage(target);
+        else if (editingPage === target) setEditingPage(index);
+      }
+    } catch {
+      toast.error("排序失败");
+    }
+  }
+
+  function startEditSettings() {
+    setEditSettings(getSettings());
+    setTab("settings");
+  }
+
+  async function saveSettings() {
+    if (!site) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/sites/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: editSettings }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setSite(json.data);
+        toast.success("设置已保存");
+      }
     } catch {
       toast.error("保存失败");
     } finally {
@@ -159,6 +213,14 @@ export default function SiteDetailPage() {
           >
             在线预览
           </button>
+          <button
+            onClick={() => startEditSettings()}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "settings" ? "bg-black text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            站点设置
+          </button>
         </div>
 
         {/* 编辑视图 */}
@@ -168,6 +230,24 @@ export default function SiteDetailPage() {
               <div key={page.slug} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 bg-zinc-50 border-b border-zinc-100">
                   <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => movePage(i, -1)}
+                        disabled={i === 0}
+                        className="text-[10px] leading-none text-zinc-300 hover:text-zinc-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                        title="上移"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => movePage(i, 1)}
+                        disabled={i === pages.length - 1}
+                        className="text-[10px] leading-none text-zinc-300 hover:text-zinc-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                        title="下移"
+                      >
+                        ▼
+                      </button>
+                    </div>
                     <span className="text-sm font-medium text-black">{page.title}</span>
                     <span className="text-xs text-zinc-400">/{page.slug}</span>
                   </div>
@@ -223,6 +303,118 @@ export default function SiteDetailPage() {
               className="w-full h-[600px] border-0"
               title="Site Preview"
             />
+          </div>
+        )}
+
+        {/* 设置视图 */}
+        {tab === "settings" && editSettings.companyName !== undefined && (
+          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6">
+            <h3 className="text-sm font-bold text-black mb-5">站点设置</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">公司名称</label>
+                <input
+                  value={editSettings.companyName || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, companyName: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">品牌标语</label>
+                <input
+                  value={editSettings.tagline || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, tagline: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">行业</label>
+                <input
+                  value={editSettings.industry || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, industry: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">主色</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={editSettings.primaryColor || "#000000"}
+                    onChange={(e) => setEditSettings({ ...editSettings, primaryColor: e.target.value })}
+                    className="w-10 h-10 rounded-lg border border-zinc-300 cursor-pointer"
+                  />
+                  <input
+                    value={editSettings.primaryColor || ""}
+                    onChange={(e) => setEditSettings({ ...editSettings, primaryColor: e.target.value })}
+                    className="flex-1 rounded-xl border border-zinc-300 px-3 py-2 text-sm font-mono focus:border-black focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-zinc-500 mb-1">产品/服务描述</label>
+                <textarea
+                  value={editSettings.products || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, products: e.target.value })}
+                  rows={2}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none resize-none"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-zinc-500 mb-1">公司简介</label>
+                <textarea
+                  value={editSettings.aboutUs || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, aboutUs: e.target.value })}
+                  rows={2}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">联系邮箱</label>
+                <input
+                  value={editSettings.contactEmail || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, contactEmail: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">联系电话</label>
+                <input
+                  value={editSettings.contactPhone || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, contactPhone: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div className="sm:col-span-2 border-t border-zinc-100 pt-4 mt-2">
+                <p className="text-xs font-medium text-zinc-400 mb-3">SEO 设置</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">SEO 标题</label>
+                <input
+                  value={editSettings.seoTitle || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, seoTitle: e.target.value })}
+                  placeholder="浏览器标题栏和搜索引擎结果标题"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">SEO 描述</label>
+                <input
+                  value={editSettings.seoDescription || ""}
+                  onChange={(e) => setEditSettings({ ...editSettings, seoDescription: e.target.value })}
+                  placeholder="搜索引擎结果中的描述文字"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <Button onClick={saveSettings} disabled={saving} className="rounded-xl bg-black text-white hover:bg-zinc-800">
+                {saving ? "保存中..." : "保存设置"}
+              </Button>
+              <Button variant="outline" onClick={() => setTab("preview")} className="rounded-xl">
+                取消
+              </Button>
+            </div>
           </div>
         )}
       </div>

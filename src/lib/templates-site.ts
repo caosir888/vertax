@@ -19,6 +19,9 @@ export interface SiteSettings {
   contactEmail: string;
   contactPhone: string;
   contactAddress: string;
+  seoTitle: string;
+  seoDescription: string;
+  ogImage: string;
 }
 
 export const siteTemplates: SiteTemplate[] = [
@@ -124,12 +127,24 @@ export function renderSiteHTML(
     )
     .join("\n");
 
+  const pageTitle = settings.seoTitle || `${settings.companyName} - ${settings.tagline}`;
+  const metaDesc = settings.seoDescription || `${settings.companyName} — ${settings.tagline}. ${settings.industry ? `${settings.industry}行业的专业B2B解决方案提供商。` : ""}`;
+  const ogImage = settings.ogImage || "";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${settings.companyName} - ${settings.tagline}</title>
+  <title>${pageTitle}</title>
+  <meta name="description" content="${metaDesc}">
+  <meta property="og:title" content="${pageTitle}">
+  <meta property="og:description" content="${metaDesc}">
+  <meta property="og:type" content="website">
+  ${ogImage ? `<meta property="og:image" content="${ogImage}">` : ""}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${pageTitle}">
+  <meta name="twitter:description" content="${metaDesc}">
   <style>
     :root { --primary: ${settings.primaryColor}; }
     * { margin: 0; padding: 0; box-sizing: border-box; }

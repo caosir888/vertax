@@ -34,6 +34,9 @@ const defaultSettings: SiteSettings = {
   contactEmail: "",
   contactPhone: "",
   contactAddress: "",
+  seoTitle: "",
+  seoDescription: "",
+  ogImage: "",
 };
 
 export default function SitesPage() {
@@ -326,6 +329,27 @@ export default function SitesPage() {
                     value={settings.contactAddress}
                     onChange={(e) => setSettings({ ...settings, contactAddress: e.target.value })}
                     placeholder="公司地址"
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2 border-t border-zinc-100 pt-4 mt-2">
+                  <p className="text-xs font-medium text-zinc-400 mb-3">SEO 设置（可选，用于搜索引擎优化）</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">SEO 标题</label>
+                  <input
+                    value={settings.seoTitle}
+                    onChange={(e) => setSettings({ ...settings, seoTitle: e.target.value })}
+                    placeholder={`留空则使用「${settings.companyName || "公司名"} - ${settings.tagline || "标语"}」`}
+                    className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">SEO 描述</label>
+                  <input
+                    value={settings.seoDescription}
+                    onChange={(e) => setSettings({ ...settings, seoDescription: e.target.value })}
+                    placeholder="150 字以内的页面描述"
                     className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
                   />
                 </div>
