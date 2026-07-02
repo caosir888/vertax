@@ -19,22 +19,19 @@ export async function GET(_request: NextRequest) {
     { count: totalContent },
     { data: contentByStatus },
     { count: totalDocs },
+    { count: totalSites },
+    { count: totalPublishes },
     { data: recentLeads },
     { data: recentContent },
   ] = await Promise.all([
-    // 线索总数
     db.from("leads").select("*", { count: "exact", head: true }).eq("team_id", teamId),
-    // 线索按状态分布
     db.from("leads").select("status").eq("team_id", teamId),
-    // 内容总数
     db.from("contents").select("*", { count: "exact", head: true }).eq("team_id", teamId),
-    // 内容按状态分布
     db.from("contents").select("status").eq("team_id", teamId),
-    // 文档总数
     db.from("documents").select("*", { count: "exact", head: true }).eq("team_id", teamId),
-    // 最近 5 条线索
+    db.from("sites").select("*", { count: "exact", head: true }).eq("team_id", teamId),
+    db.from("publish_records").select("*", { count: "exact", head: true }).eq("team_id", teamId),
     db.from("leads").select("id,name,company,status,created_at").eq("team_id", teamId).order("created_at", { ascending: false }).limit(5),
-    // 最近 5 条内容
     db.from("contents").select("id,title,status,updated_at").eq("team_id", teamId).order("updated_at", { ascending: false }).limit(5),
   ]);
 
@@ -54,7 +51,7 @@ export async function GET(_request: NextRequest) {
     else contentStatusCount[c.status] = 1;
   });
 
-  // 本月新增线索数
+  // 本月新增线索数 & 月度趋势（最近 6 个月）
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const { count: monthLeads } = await db
@@ -63,16 +60,51 @@ export async function GET(_request: NextRequest) {
     .eq("team_id", teamId)
     .gte("created_at", monthStart);
 
+  // 最近 6 个月线索趋势
+  const monthlyLabels: string[] = [];
+  const monthlyLeadData: number[] = [];
+  const monthlyContentData: number[] = [];
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthLabel = `${d.getMonth() + 1}月`;
+    const from = d.toISOString();
+    const to = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).toISOString();
+
+    const { count: lc } = await db
+      .from("leads")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .gte("created_at", from)
+      .lt("created_at", to);
+
+    const { count: cc } = await db
+      .from("contents")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .gte("created_at", from)
+      .lt("created_at", to);
+
+    monthlyLabels.push(monthLabel);
+    monthlyLeadData.push(lc || 0);
+    monthlyContentData.push(cc || 0);
+  }
+
   return NextResponse.json({
     data: {
       totalLeads: totalLeads || 0,
       totalContent: totalContent || 0,
       totalDocs: totalDocs || 0,
+      totalSites: totalSites || 0,
+      totalPublishes: totalPublishes || 0,
       monthLeads: monthLeads || 0,
       leadStatusCount,
       contentStatusCount,
       recentLeads: recentLeads || [],
       recentContent: recentContent || [],
+      monthlyLabels,
+      monthlyLeadData,
+      monthlyContentData,
     },
   });
 }

@@ -6,11 +6,16 @@ interface DashboardData {
   totalLeads: number;
   totalContent: number;
   totalDocs: number;
+  totalSites: number;
+  totalPublishes: number;
   monthLeads: number;
   leadStatusCount: Record<string, number>;
   contentStatusCount: Record<string, number>;
   recentLeads: { id: string; name: string; company: string; status: string; created_at: string }[];
   recentContent: { id: string; title: string; status: string; updated_at: string }[];
+  monthlyLabels: string[];
+  monthlyLeadData: number[];
+  monthlyContentData: number[];
 }
 
 const LEAD_STATUS: Record<string, { label: string; color: string }> = {
@@ -27,6 +32,45 @@ const CONTENT_STATUS: Record<string, { label: string; color: string }> = {
   review: { label: "审核中", color: "bg-yellow-500" },
   published: { label: "已发布", color: "bg-green-500" },
 };
+
+function TrendBars({ labels, values, color }: { labels: string[]; values: number[]; color: string }) {
+  const maxVal = Math.max(1, ...values);
+  const h = 140;
+  const w = labels.length * 52 + 30;
+  const barW = 32;
+  const gap = 52;
+
+  if (maxVal === 0 || values.every((v) => v === 0)) {
+    return (
+      <div className="flex items-center justify-center h-36 text-xs text-zinc-300">
+        暂无数据
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <svg width={w} height={h + 30} className="mx-auto">
+        {values.map((v, i) => {
+          const barH = Math.max(4, (v / maxVal) * h);
+          const x = i * gap + 20;
+          const y = h - barH;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={barW} height={barH} rx="3" fill={color} opacity="0.85" />
+              <text x={x + barW / 2} y={y - 4} textAnchor="middle" className="text-[10px]" fill="#52525b">
+                {v}
+              </text>
+              <text x={x + barW / 2} y={h + 16} textAnchor="middle" className="text-[10px]" fill="#a1a1aa">
+                {labels[i]}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -58,20 +102,21 @@ export default function DashboardPage() {
         </p>
 
         {loading ? (
-          <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="rounded-xl bg-zinc-100 animate-pulse h-28" />
             ))}
           </div>
         ) : data ? (
           <>
             {/* ====== 统计卡片 ====== */}
-            <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { label: "线索总数", value: data.totalLeads, sub: `本月 +${data.monthLeads}`, href: "/leads" },
                 { label: "内容资产", value: data.totalContent, sub: `${data.contentStatusCount.published || 0} 已发布`, href: "/content" },
                 { label: "知识库文档", value: data.totalDocs, sub: "RAG 向量检索", href: "/knowledge" },
-                { label: "已成交", value: data.leadStatusCount.won || 0, sub: "线索转化", href: "/leads" },
+                { label: "独立站", value: data.totalSites, sub: `${data.totalPublishes} 次发布`, href: "/sites" },
+                { label: "已成交", value: data.leadStatusCount.won || 0, sub: `${data.leadStatusCount.won && data.leadStatusCount.new ? Math.round((data.leadStatusCount.won / Math.max(1, data.totalLeads)) * 100) : 0}% 转化率`, href: "/leads" },
               ].map((card) => (
                 <a
                   key={card.label}
@@ -84,6 +129,32 @@ export default function DashboardPage() {
                 </a>
               ))}
             </div>
+
+            {/* ====== 月度趋势图 ====== */}
+            {data.monthlyLabels?.length > 0 && (
+              <div className="mt-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* 线索月度趋势 */}
+                  <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                    <h3 className="text-sm font-bold text-black mb-4">线索月度趋势</h3>
+                    <TrendBars
+                      labels={data.monthlyLabels}
+                      values={data.monthlyLeadData}
+                      color="#3b82f6"
+                    />
+                  </div>
+                  {/* 内容月度趋势 */}
+                  <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                    <h3 className="text-sm font-bold text-black mb-4">内容创作趋势</h3>
+                    <TrendBars
+                      labels={data.monthlyLabels}
+                      values={data.monthlyContentData}
+                      color="#8b5cf6"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ====== 两栏图表 ====== */}
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
