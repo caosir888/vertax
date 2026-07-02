@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 查数据库，找匹配的邮箱和密码
-  const { data: user, error } = await supabase
+  const { data: user, error } = await getSupabase()
     .from("users")
     .select("id, name, email")
     .eq("email", email)

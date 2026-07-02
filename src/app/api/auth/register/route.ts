@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. 检查邮箱是否已注册
-  const { data: existingUser } = await supabase
+  const { data: existingUser } = await getSupabase()
     .from("users")
     .select("id")
     .eq("email", email)
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 5. 写入数据库
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("users")
     .insert({ name, email, password })
     .select("id, name, email, created_at")

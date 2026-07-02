@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 
 // GET /api/memos/[id] — 获取单条备忘录
@@ -14,7 +14,7 @@ export async function GET(
 
   const { id } = await params;
 
-  const { data: memo } = await supabase
+  const { data: memo } = await getSupabase()
     .from("memos")
     .select("*")
     .eq("id", id)
@@ -41,7 +41,7 @@ export async function DELETE(
   const { id } = await params;
 
   // 先验证这条备忘录属于当前用户
-  const { data: memo } = await supabase
+  const { data: memo } = await getSupabase()
     .from("memos")
     .select("id")
     .eq("id", id)
@@ -52,7 +52,7 @@ export async function DELETE(
     return NextResponse.json({ error: "备忘录不存在或无权删除" }, { status: 404 });
   }
 
-  const { error } = await supabase.from("memos").delete().eq("id", id);
+  const { error } = await getSupabase().from("memos").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

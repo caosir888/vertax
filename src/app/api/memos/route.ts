@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 
 // GET /api/memos — 获取当前用户的备忘录
@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("memos")
     .select("*")
     .eq("user_id", user.id) // 关键：只查自己的
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "标题不能为空" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("memos")
     .insert({ user_id: user.id, title: title.trim(), content: content || "" })
     .select()
