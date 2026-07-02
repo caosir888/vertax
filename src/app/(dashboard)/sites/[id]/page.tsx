@@ -25,11 +25,13 @@ export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [site, setSite] = useState<Site | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"edit" | "preview" | "settings">("preview");
+  const [tab, setTab] = useState<"edit" | "preview" | "settings" | "deploy">("preview");
   const [editingPage, setEditingPage] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [editSettings, setEditSettings] = useState<SiteSettings>({} as SiteSettings);
+  const [domain, setDomain] = useState("");
+  const [deployOpen, setDeployOpen] = useState(false);
 
   useEffect(() => {
     loadSite();
@@ -134,6 +136,44 @@ export default function SiteDetailPage() {
     }
   }
 
+  async function toggleStatus() {
+    if (!site) return;
+    const newStatus = site.status === "published" ? "draft" : "published";
+    try {
+      const res = await fetch(`/api/sites/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setSite(json.data);
+        toast.success(newStatus === "published" ? "站点已发布" : "站点已下架");
+      }
+    } catch {
+      toast.error("状态更新失败");
+    }
+  }
+
+  async function saveDomain() {
+    if (!site) return;
+    const newSettings = { ...getSettings(), customDomain: domain } as unknown as Record<string, unknown>;
+    try {
+      const res = await fetch(`/api/sites/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: newSettings }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setSite(json.data);
+        toast.success("域名已保存");
+      }
+    } catch {
+      toast.error("保存失败");
+    }
+  }
+
   function downloadHTML() {
     if (!site) return;
     const tpl = siteTemplates.find((t) => t.id === site.template_id);
@@ -189,6 +229,18 @@ export default function SiteDetailPage() {
             <p className="text-sm text-zinc-400">{tpl?.name}</p>
           </div>
           <div className="flex items-center gap-2">
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              site.status === "published" ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"
+            }`}>
+              {site.status === "published" ? "已发布" : "草稿"}
+            </span>
+            <Button
+              onClick={toggleStatus}
+              variant="outline"
+              className={`rounded-xl text-sm ${site.status === "published" ? "text-red-500 hover:text-red-700" : "text-green-600 hover:text-green-700"}`}
+            >
+              {site.status === "published" ? "取消发布" : "发布站点"}
+            </Button>
             <Button onClick={downloadHTML} variant="outline" className="rounded-xl">
               下载 HTML
             </Button>
@@ -220,6 +272,14 @@ export default function SiteDetailPage() {
             }`}
           >
             站点设置
+          </button>
+          <button
+            onClick={() => { const s = getSettings(); setDomain((s as unknown as Record<string, string>).customDomain || ""); setTab("deploy"); }}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "deploy" ? "bg-black text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            部署
           </button>
         </div>
 
@@ -414,6 +474,116 @@ export default function SiteDetailPage() {
               <Button variant="outline" onClick={() => setTab("preview")} className="rounded-xl">
                 取消
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 部署视图 */}
+        {tab === "deploy" && (
+          <div className="mt-6 space-y-6">
+            {/* 发布状态卡片 */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+              <h3 className="text-sm font-bold text-black mb-4">站点状态</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600">
+                    当前状态：<span className={`font-medium ${site.status === "published" ? "text-green-600" : "text-zinc-500"}`}>
+                      {site.status === "published" ? "已发布" : "草稿"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    {site.status === "published"
+                      ? "站点已公开可访问，任何人都可以通过预览链接查看"
+                      : "仅团队成员可预览，发布后生成公开访问链接"}
+                  </p>
+                </div>
+                <Button
+                  onClick={toggleStatus}
+                  className={`rounded-xl text-sm ${site.status === "published" ? "bg-red-500 hover:bg-red-600" : "bg-green-600 hover:bg-green-700"} text-white`}
+                >
+                  {site.status === "published" ? "取消发布" : "发布站点"}
+                </Button>
+              </div>
+
+              {site.status === "published" && (
+                <div className="mt-5 rounded-xl bg-zinc-50 p-4">
+                  <p className="text-xs font-medium text-zinc-500 mb-2">公开预览链接</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded-lg bg-white border border-zinc-200 px-3 py-2 text-sm text-zinc-700 break-all">
+                      {typeof window !== "undefined" ? `${window.location.origin}/api/sites/${site.id}/preview` : `/api/sites/${site.id}/preview`}
+                    </code>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/api/sites/${site.id}/preview`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("链接已复制");
+                      }}
+                      className="shrink-0 rounded-lg bg-black px-3 py-2 text-xs text-white hover:bg-zinc-800"
+                    >
+                      复制
+                    </button>
+                    <a
+                      href={`/api/sites/${site.id}/preview`}
+                      target="_blank"
+                      className="shrink-0 rounded-lg border border-zinc-300 px-3 py-2 text-xs text-zinc-600 hover:bg-zinc-50"
+                    >
+                      打开 →
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 自定义域名 */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+              <h3 className="text-sm font-bold text-black mb-4">自定义域名</h3>
+              <p className="text-xs text-zinc-400 mb-4">
+                绑定你自己的域名。你需要先在域名 DNS 中添加一条 CNAME 记录指向部署平台。
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  placeholder="例如：www.yourcompany.com"
+                  className="flex-1 rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+                <Button onClick={saveDomain} className="rounded-xl bg-black text-white hover:bg-zinc-800 text-sm">
+                  保存域名
+                </Button>
+              </div>
+            </div>
+
+            {/* 部署指南 */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+              <h3 className="text-sm font-bold text-black mb-4">部署指南</h3>
+              <div className="space-y-5">
+                <div>
+                  <p className="text-sm font-medium text-zinc-700 mb-2">方式一：下载 HTML 上传</p>
+                  <div className="rounded-lg bg-zinc-50 p-4 text-xs text-zinc-500 space-y-1">
+                    <p>1. 点击上方「下载 HTML」按钮</p>
+                    <p>2. 登录 Vercel / Netlify / Cloudflare Pages</p>
+                    <p>3. 将下载的 .html 文件拖入部署面板</p>
+                    <p>4. 自动生成域名，完成部署</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-700 mb-2">方式二：绑定 GitHub 自动部署</p>
+                  <div className="rounded-lg bg-zinc-50 p-4 text-xs text-zinc-500 space-y-1">
+                    <p>1. 将 HTML 上传到 GitHub 仓库</p>
+                    <p>2. 在 Vercel 中 Import 该仓库</p>
+                    <p>3. 每次更新后重新下载 HTML 推送到仓库即可自动部署</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-700 mb-2">自定义域名设置</p>
+                  <div className="rounded-lg bg-zinc-50 p-4 text-xs text-zinc-500 space-y-1">
+                    <p>1. 在域名 DNS 中添加 CNAME 记录</p>
+                    <p>2. CNAME 指向：<code>cname.vercel-dns.com</code>（Vercel）或 Netlify/Cloudflare 的对应地址</p>
+                    <p>3. 在部署平台 Settings → Domains 中添加你的域名</p>
+                    <p>4. 等待 DNS 生效（通常 5-30 分钟）</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
