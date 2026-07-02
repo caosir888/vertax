@@ -119,13 +119,38 @@ export default function KnowledgePage() {
     }
   }
 
+  async function embedDoc(docId: string) {
+    toast.info("正在向量化...");
+    try {
+      const res = await fetch(`/api/documents/${docId}/embed`, { method: "POST" });
+      const json = await res.json();
+      if (json.error) {
+        toast.error(json.error);
+      } else {
+        toast.success(`向量化完成！${json.data.chunk_count} 个分块，${json.data.dimensions} 维`);
+      }
+    } catch {
+      toast.error("向量化失败");
+    }
+  }
+
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold text-black">知识库</h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          上传 PDF、Word、TXT、Markdown 文档，AI 将自动解析用于智能问答
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-black">知识库</h1>
+            <p className="mt-2 text-sm text-zinc-500">
+              上传 PDF、Word、TXT、Markdown 文档，AI 将自动解析用于智能问答
+            </p>
+          </div>
+          <a
+            href="/knowledge/chat"
+            className="shrink-0 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition-colors"
+          >
+            AI 问答
+          </a>
+        </div>
 
         {/* ========== 上传区域 ========== */}
         <div
@@ -217,6 +242,14 @@ export default function KnowledgePage() {
                         className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
                       >
                         解析
+                      </button>
+                    )}
+                    {doc.status === "done" && (
+                      <button
+                        onClick={() => embedDoc(doc.id)}
+                        className="text-xs text-emerald-500 hover:text-emerald-700 transition-colors"
+                      >
+                        向量化
                       </button>
                     )}
                     <button
