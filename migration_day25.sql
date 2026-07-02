@@ -58,3 +58,14 @@ create policy "documents_all" on documents for all using (true);
 --   on storage.objects for insert with check (bucket_id = 'documents' and auth.role() = 'authenticated');
 -- create policy "Owner can delete documents"
 --   on storage.objects for delete using (bucket_id = 'documents' and auth.role() = 'authenticated');
+
+-- 5. 创建 document_chunks 表（Day 30 — 文档分块）
+create table if not exists document_chunks (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references documents(id) on delete cascade,
+  chunk_index integer not null,
+  content text not null,
+  created_at timestamptz default now()
+);
+alter table document_chunks enable row level security;
+create policy "document_chunks_all" on document_chunks for all using (true);

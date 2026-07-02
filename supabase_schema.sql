@@ -88,6 +88,17 @@ create table documents (
 alter table documents enable row level security;
 create policy "documents_all" on documents for all using (true);
 
+-- 8. 文档分块表
+create table document_chunks (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references documents(id) on delete cascade,
+  chunk_index integer not null,
+  content text not null,
+  created_at timestamptz default now()
+);
+alter table document_chunks enable row level security;
+create policy "document_chunks_all" on document_chunks for all using (true);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;

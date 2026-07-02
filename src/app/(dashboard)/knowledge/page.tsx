@@ -16,6 +16,13 @@ interface Document {
   created_at: string;
 }
 
+const statusLabels: Record<string, { label: string; color: string }> = {
+  ready: { label: "待解析", color: "bg-zinc-100 text-zinc-600" },
+  processing: { label: "解析中", color: "bg-blue-100 text-blue-700" },
+  done: { label: "已解析", color: "bg-green-100 text-green-700" },
+  error: { label: "失败", color: "bg-red-100 text-red-700" },
+};
+
 const typeLabels: Record<string, string> = {
   "application/pdf": "PDF",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
@@ -83,6 +90,22 @@ export default function KnowledgePage() {
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file) doUpload(file);
+  }
+
+  async function parseDoc(docId: string) {
+    toast.info("开始解析文档...");
+    try {
+      const res = await fetch(`/api/documents/${docId}/parse`, { method: "POST" });
+      const json = await res.json();
+      if (json.error) {
+        toast.error(json.error);
+      } else {
+        toast.success(`解析完成！共 ${json.data.chunk_count} 个文本块`);
+        loadDocs();
+      }
+    } catch {
+      toast.error("解析失败");
+    }
   }
 
   async function deleteDoc() {
@@ -176,18 +199,33 @@ export default function KnowledgePage() {
                       {typeLabels[doc.file_type] || doc.file_type || "?"}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-black truncate">{doc.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-black truncate">{doc.name}</p>
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${statusLabels[doc.status]?.color || "bg-zinc-100 text-zinc-600"}`}>
+                          {statusLabels[doc.status]?.label || doc.status}
+                        </span>
+                      </div>
                       <p className="text-xs text-zinc-400">
                         {formatSize(doc.file_size)} · {new Date(doc.created_at).toLocaleString("zh-CN")}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => { setDelId(doc.id); setDelOpen(true); }}
-                    className="shrink-0 text-xs text-zinc-400 hover:text-red-500 transition-colors ml-2"
-                  >
-                    删除
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {(doc.status === "ready" || doc.status === "error") && (
+                      <button
+                        onClick={() => parseDoc(doc.id)}
+                        className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
+                      >
+                        解析
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setDelId(doc.id); setDelOpen(true); }}
+                      className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
+                    >
+                      删除
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
