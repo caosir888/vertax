@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { chat } from "@/lib/llm";
 import { logActivity } from "@/lib/activity-logger";
+import { sendNotification } from "@/lib/notifications";
 import { siteTemplates, buildSitePrompt, parseSiteContent, type SiteSettings } from "@/lib/templates-site";
 
 // POST /api/sites/generate — AI 生成独立站内容
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest) {
     }
 
     logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "生成独立站", target: finalSettings.companyName });
+
+    sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `独立站「${finalSettings.companyName}」已生成`, message: `使用「${template.name}」模板生成，共 ${pages.length} 个页面` });
 
     return NextResponse.json({ data: { ...data, pages } });
   } catch (err: unknown) {

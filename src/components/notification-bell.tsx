@@ -41,6 +41,12 @@ export function NotificationBell() {
     setUnread((prev) => Math.max(0, prev - 1));
   }
 
+  async function markAllRead() {
+    await fetch("/api/notifications/read-all", { method: "PATCH" });
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnread(0);
+  }
+
   return (
     <DropdownMenu open={open} onOpenChange={(val) => { setOpen(val); if (val) fetchNotifications(); }}>
       <DropdownMenuTrigger className="relative inline-flex items-center justify-center rounded-lg p-2 text-sm hover:bg-zinc-100 transition-colors">
@@ -54,9 +60,19 @@ export function NotificationBell() {
       <DropdownMenuContent align="end" className="w-80">
         <div className="flex items-center justify-between px-3 py-2">
           <p className="text-sm font-medium text-black">通知</p>
-          {unread > 0 && (
-            <span className="text-xs text-red-500">{unread} 条未读</span>
-          )}
+          <div className="flex items-center gap-2">
+            {unread > 0 && (
+              <>
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+                >
+                  全部已读
+                </button>
+                <span className="text-xs text-red-500">{unread} 条未读</span>
+              </>
+            )}
+          </div>
         </div>
         <div className="h-px bg-zinc-100" />
         {notifications.length === 0 ? (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-logger";
+import { sendNotification } from "@/lib/notifications";
 
 // GET /api/content — 获取内容列表（支持筛选和搜索）
 // Query: ?status=draft&language=zh-CN&template_id=product-intro&search=关键词
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
   }
 
   logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "创建内容", target: data.title });
+  sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `新内容「${data.title}」已创建`, message: `${user.name} 创建了一条新内容` });
 
   return NextResponse.json({ data }, { status: 201 });
 }

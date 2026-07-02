@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-logger";
+import { sendNotification } from "@/lib/notifications";
 
 // POST /api/leads/import — CSV 批量导入
 export async function POST(request: NextRequest) {
@@ -45,6 +46,8 @@ export async function POST(request: NextRequest) {
   }
 
   logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "导入线索", target: `${data.length} 条` });
+
+  sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `已导入 ${data.length} 条线索`, message: `${user.name} 批量导入了线索` });
 
   return NextResponse.json({ data: { imported: data.length } });
 }
