@@ -1,58 +1,204 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+
+interface DashboardData {
+  totalLeads: number;
+  totalContent: number;
+  totalDocs: number;
+  monthLeads: number;
+  leadStatusCount: Record<string, number>;
+  contentStatusCount: Record<string, number>;
+  recentLeads: { id: string; name: string; company: string; status: string; created_at: string }[];
+  recentContent: { id: string; title: string; status: string; updated_at: string }[];
+}
+
+const LEAD_STATUS: Record<string, { label: string; color: string }> = {
+  new: { label: "新线索", color: "bg-blue-500" },
+  contacted: { label: "已联系", color: "bg-yellow-500" },
+  qualified: { label: "已确认", color: "bg-purple-500" },
+  proposal: { label: "提案中", color: "bg-orange-500" },
+  won: { label: "已成交", color: "bg-green-500" },
+  lost: { label: "已流失", color: "bg-zinc-400" },
+};
+
+const CONTENT_STATUS: Record<string, { label: string; color: string }> = {
+  draft: { label: "草稿", color: "bg-zinc-400" },
+  review: { label: "审核中", color: "bg-yellow-500" },
+  published: { label: "已发布", color: "bg-green-500" },
+};
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<{ name: string } | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch("/api/dashboard")
       .then((res) => res.json())
       .then((json) => {
-        if (json.data) setUser(json.data);
+        if (json.data) setData(json.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
+  const maxLeadCount = data
+    ? Math.max(1, ...Object.values(data.leadStatusCount))
+    : 1;
+  const maxContentCount = data
+    ? Math.max(1, ...Object.values(data.contentStatusCount))
+    : 1;
+
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-12">
-      <div className="mx-auto max-w-4xl">
-        {loading ? (
-          <Skeleton className="h-8 w-48" />
-        ) : (
-          <h1 className="text-2xl font-bold text-black">
-            欢迎回来，{user?.name || "..."}！
-          </h1>
-        )}
+      <div className="mx-auto max-w-6xl">
+        <h1 className="text-2xl font-bold text-black">数据分析</h1>
         <p className="mt-2 text-sm text-zinc-500">
-          VertaX AI 驱动的 B2B 获客平台
+          业务概览：线索转化漏斗、内容产出、知识库资产
         </p>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            { label: "知识库文档", value: "0", href: "/knowledge" },
-            { label: "AI 生成内容", value: "0", href: "/content" },
-            { label: "线索数量", value: "0", href: "/leads" },
-          ].map((card) => (
-            <a
-              key={card.label}
-              href={card.href}
-              className="rounded-lg border border-zinc-200 bg-white p-6 text-center hover:border-zinc-300 transition-colors"
-            >
-              <div className="text-3xl font-bold text-black">{card.value}</div>
-              <div className="mt-1 text-sm text-zinc-500">{card.label}</div>
-            </a>
-          ))}
-        </div>
+        {loading ? (
+          <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-xl bg-zinc-100 animate-pulse h-28" />
+            ))}
+          </div>
+        ) : data ? (
+          <>
+            {/* ====== 统计卡片 ====== */}
+            <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: "线索总数", value: data.totalLeads, sub: `本月 +${data.monthLeads}`, href: "/leads" },
+                { label: "内容资产", value: data.totalContent, sub: `${data.contentStatusCount.published || 0} 已发布`, href: "/content" },
+                { label: "知识库文档", value: data.totalDocs, sub: "RAG 向量检索", href: "/knowledge" },
+                { label: "已成交", value: data.leadStatusCount.won || 0, sub: "线索转化", href: "/leads" },
+              ].map((card) => (
+                <a
+                  key={card.label}
+                  href={card.href}
+                  className="rounded-xl border border-zinc-200 bg-white p-5 hover:border-zinc-300 transition-colors"
+                >
+                  <div className="text-3xl font-bold text-black">{card.value}</div>
+                  <div className="mt-1 text-sm font-medium text-zinc-600">{card.label}</div>
+                  <div className="mt-1 text-xs text-zinc-400">{card.sub}</div>
+                </a>
+              ))}
+            </div>
 
-        <div className="mt-8 rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-400">
-          左侧导航各模块（知识库 / 内容工坊 / 线索管理 / 数据分析 / 设置）
-          <br />
-          将在后续课程中逐一实现
-        </div>
+            {/* ====== 两栏图表 ====== */}
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 线索漏斗 */}
+              <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                <h3 className="text-sm font-bold text-black mb-5">线索转化漏斗</h3>
+                <div className="space-y-3">
+                  {Object.entries(LEAD_STATUS).map(([key, st]) => {
+                    const count = data.leadStatusCount[key] || 0;
+                    const pct = Math.round((count / data.totalLeads) * 100) || 0;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-zinc-600">{st.label}</span>
+                          <span className="text-zinc-400">{count}</span>
+                        </div>
+                        <div className="h-5 rounded-full bg-zinc-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${st.color}`}
+                            style={{ width: `${Math.max((count / maxLeadCount) * 100, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 内容状态 */}
+              <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                <h3 className="text-sm font-bold text-black mb-5">内容状态分布</h3>
+                <div className="space-y-3">
+                  {Object.entries(CONTENT_STATUS).map(([key, st]) => {
+                    const count = data.contentStatusCount[key] || 0;
+                    const pct = Math.round((count / data.totalContent) * 100) || 0;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-zinc-600">{st.label}</span>
+                          <span className="text-zinc-400">
+                            {count} <span className="text-zinc-300">({pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="h-5 rounded-full bg-zinc-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${st.color}`}
+                            style={{ width: `${Math.max((count / maxContentCount) * 100, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* ====== 最近动态 ====== */}
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 最近线索 */}
+              <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-black">最近线索</h3>
+                  <a href="/leads" className="text-xs text-zinc-400 hover:text-black transition-colors">
+                    查看全部 →
+                  </a>
+                </div>
+                {data.recentLeads.length === 0 ? (
+                  <p className="text-sm text-zinc-300 text-center py-8">暂无数据</p>
+                ) : (
+                  <div className="space-y-2">
+                    {data.recentLeads.map((lead) => (
+                      <div key={lead.id} className="flex items-center justify-between py-2 border-b border-zinc-50 last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-black">{lead.name}</p>
+                          <p className="text-xs text-zinc-400">{lead.company || "—"}</p>
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${LEAD_STATUS[lead.status]?.color.replace("bg-", "bg-").replace("500", "100 text-" + LEAD_STATUS[lead.status]?.color.replace("bg-", "").replace("-500", "-700"))}`}>
+                          {LEAD_STATUS[lead.status]?.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 最近内容 */}
+              <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-black">最近内容</h3>
+                  <a href="/content" className="text-xs text-zinc-400 hover:text-black transition-colors">
+                    查看全部 →
+                  </a>
+                </div>
+                {data.recentContent.length === 0 ? (
+                  <p className="text-sm text-zinc-300 text-center py-8">暂无数据</p>
+                ) : (
+                  <div className="space-y-2">
+                    {data.recentContent.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between py-2 border-b border-zinc-50 last:border-0">
+                        <p className="text-sm font-medium text-black truncate flex-1 mr-3">{c.title}</p>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${c.status === "published" ? "bg-green-100 text-green-700" : c.status === "review" ? "bg-yellow-100 text-yellow-700" : "bg-zinc-100 text-zinc-600"}`}>
+                          {CONTENT_STATUS[c.status]?.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="mt-8 rounded-xl border border-dashed border-zinc-300 py-20 text-center text-sm text-zinc-400">
+            加载失败，请刷新重试
+          </div>
+        )}
       </div>
     </div>
   );
