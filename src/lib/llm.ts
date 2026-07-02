@@ -17,6 +17,10 @@ interface ChatResponse {
 }
 
 export async function chat(messages: ChatMessage[]): Promise<string> {
+  if (!LLM_API_KEY) {
+    throw new Error("未配置 LLM_API_KEY 环境变量");
+  }
+
   const res = await fetch(LLM_API_URL, {
     method: "POST",
     headers: {
@@ -27,7 +31,7 @@ export async function chat(messages: ChatMessage[]): Promise<string> {
       model: LLM_MODEL,
       messages,
       temperature: 0.5,
-      max_tokens: 2000,
+      max_tokens: 4096,
     }),
   });
 
@@ -37,7 +41,7 @@ export async function chat(messages: ChatMessage[]): Promise<string> {
   }
 
   const json: ChatResponse = await res.json();
-  return json.choices[0].message.content;
+  return json.choices?.[0]?.message?.content ?? "";
 }
 
 export function buildRagPrompt(

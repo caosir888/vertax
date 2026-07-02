@@ -143,6 +143,45 @@ create extension if not exists vector;
 -- 14. 给 document_chunks 加 embedding 列（1536 维 = OpenAI text-embedding-3-small）
 alter table document_chunks add column if not exists embedding vector(1536);
 
+-- 15. pgvector 语义搜索函数（RPC）
+create or replace function search_chunks(
+  query_embedding vector(1536),
+  match_threshold float default 0.5,
+  match_count int default 5,
+  filter_team_id uuid default null,
+  filter_knowledge_base_id uuid default null
+) returns table(
+  id uuid,
+  content text,
+  chunk_index int,
+  document_id uuid,
+  similarity float
+) language plpgsql as $$
+begin
+  return query
+  select
+    dc.id,
+    dc.content,
+    dc.chunk_index,
+    dc.document_id,
+    1 - (dc.embedding <=> query_embedding) as similarity
+  from document_chunks dc
+  join documents d on d.id = dc.document_id
+  where dc.embedding is not null
+    and (filter_team_id is null or d.team_id = filter_team_id)
+    and (filter_knowledge_base_id is null or d.knowledge_base_id = filter_knowledge_base_id)
+    and 1 - (dc.embedding <=> query_embedding) > match_threshold
+  order by dc.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+-- 16. pgvector 索引（加速搜索）
+create index if not exists document_chunks_embedding_idx
+  on document_chunks
+  using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;

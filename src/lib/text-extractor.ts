@@ -32,6 +32,27 @@ export async function extractText(
 
 // ========== 文本分块 ==========
 
+// 长段落按句子边界拆分为子块
+function splitLongParagraph(text: string, maxSize: number): string[] {
+  const sentences = text.split(/(?<=[。！？.!?\n])\s*/);
+  const result: string[] = [];
+  let current = "";
+
+  for (const s of sentences) {
+    if (!s.trim()) continue;
+    if (current && (current.length + s.length > maxSize)) {
+      if (current.trim()) result.push(current.trim());
+      current = s;
+    } else if (!current) {
+      current = s;
+    } else {
+      current += s;
+    }
+  }
+  if (current.trim()) result.push(current.trim());
+  return result.length > 0 ? result : [text]; // fallback: 无法按句子拆分就原样返回
+}
+
 export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): string[] {
   if (!text || !text.trim()) return [];
 
@@ -44,11 +65,32 @@ export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): str
   for (const para of paragraphs) {
     const trimmed = para.trim();
 
-    // 如果单段加到当前块后不超限 → 加入
+    // 单段超过 maxChunkSize → 按句子拆开
+    if (trimmed.length > maxChunkSize) {
+      // 先把当前累积的块输出
+      if (current.trim()) {
+        chunks.push(current.trim());
+        current = "";
+      }
+      // 长段落按句子拆分
+      const subChunks = splitLongParagraph(trimmed, maxChunkSize);
+      for (const sub of subChunks) {
+        if (current && (current.length + sub.length + 2) > maxChunkSize) {
+          chunks.push(current.trim());
+          current = sub;
+        } else if (!current) {
+          current = sub;
+        } else {
+          current += "\n\n" + sub;
+        }
+      }
+      continue;
+    }
+
+    // 正常：单段加到当前块
     if (current && (current.length + trimmed.length + 2) > maxChunkSize) {
       chunks.push(current.trim());
-      // overlap：保留上一块尾部作为上下文
-      const tail = current.slice(-overlap);
+      const tail = current.length > overlap ? current.slice(-overlap) : current;
       current = tail ? tail + "\n\n" + trimmed : trimmed;
     } else if (!current) {
       current = trimmed;
@@ -57,7 +99,6 @@ export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): str
     }
   }
 
-  // 最后一块
   if (current.trim()) {
     chunks.push(current.trim());
   }

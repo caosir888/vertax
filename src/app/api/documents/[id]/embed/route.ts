@@ -44,16 +44,19 @@ export async function POST(
     const texts = chunks.map((c: { content: string }) => c.content);
     const vectors = await getEmbeddings(texts);
 
-    // 逐条更新 embedding
-    for (let i = 0; i < chunks.length; i++) {
-      const { error } = await getSupabase()
-        .from("document_chunks")
-        .update({ embedding: vectors[i] })
-        .eq("id", (chunks[i] as { id: string }).id);
+    // 并行更新 embedding
+    const results = await Promise.all(
+      chunks.map((c: { id: string }, i: number) =>
+        getSupabase()
+          .from("document_chunks")
+          .update({ embedding: vectors[i] })
+          .eq("id", c.id)
+      )
+    );
 
-      if (error) {
-        return NextResponse.json({ error: `更新 chunk ${i} 失败: ${error.message}` }, { status: 500 });
-      }
+    const firstError = results.find((r) => r.error);
+    if (firstError?.error) {
+      return NextResponse.json({ error: `更新 embedding 失败: ${firstError.error.message}` }, { status: 500 });
     }
 
     return NextResponse.json({

@@ -111,3 +111,42 @@ create table if not exists chat_messages (
 );
 alter table chat_messages enable row level security;
 create policy "chat_messages_all" on chat_messages for all using (true);
+
+-- 11. pgvector 语义搜索函数（RPC）
+create or replace function search_chunks(
+  query_embedding vector(1536),
+  match_threshold float default 0.5,
+  match_count int default 5,
+  filter_team_id uuid default null,
+  filter_knowledge_base_id uuid default null
+) returns table(
+  id uuid,
+  content text,
+  chunk_index int,
+  document_id uuid,
+  similarity float
+) language plpgsql as $$
+begin
+  return query
+  select
+    dc.id,
+    dc.content,
+    dc.chunk_index,
+    dc.document_id,
+    1 - (dc.embedding <=> query_embedding) as similarity
+  from document_chunks dc
+  join documents d on d.id = dc.document_id
+  where dc.embedding is not null
+    and (filter_team_id is null or d.team_id = filter_team_id)
+    and (filter_knowledge_base_id is null or d.knowledge_base_id = filter_knowledge_base_id)
+    and 1 - (dc.embedding <=> query_embedding) > match_threshold
+  order by dc.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+-- 12. pgvector 索引（加速搜索）
+create index if not exists document_chunks_embedding_idx
+  on document_chunks
+  using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);

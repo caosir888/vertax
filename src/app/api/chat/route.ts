@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { getEmbedding } from "@/lib/embedding";
+import { getEmbedding, cosineSimilarity } from "@/lib/embedding";
 import { chat, buildRagPrompt } from "@/lib/llm";
 
 // POST /api/chat — RAG 问答（自动保存到聊天历史）
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     const { data: rpcData, error: rpcError } = await getSupabase().rpc("search_chunks", {
       query_embedding: queryVector,
-      match_threshold: 0.3,
+      match_threshold: 0.5,
       match_count: topK,
       filter_team_id: user.team_id,
       filter_knowledge_base_id: knowledge_base_id || null,
@@ -80,20 +80,13 @@ export async function POST(request: NextRequest) {
       }
 
       chunks = (rawData || [])
-        .map((chunk: { id: string; content: string; chunk_index: number; document_id: string; embedding: number[] }) => {
-          let sim = 0;
-          if (chunk.embedding && Array.isArray(chunk.embedding)) {
-            let dot = 0, normA = 0, normB = 0;
-            for (let i = 0; i < queryVector.length; i++) {
-              dot += queryVector[i] * chunk.embedding[i];
-              normA += queryVector[i] * queryVector[i];
-              normB += chunk.embedding[i] * chunk.embedding[i];
-            }
-            sim = dot / (Math.sqrt(normA) * Math.sqrt(normB));
-          }
-          return { ...chunk, similarity: sim };
-        })
-        .filter((r: { similarity: number }) => r.similarity > 0.3)
+        .map((chunk: { id: string; content: string; chunk_index: number; document_id: string; embedding: number[] }) => ({
+          ...chunk,
+          similarity: chunk.embedding && Array.isArray(chunk.embedding)
+            ? cosineSimilarity(queryVector, chunk.embedding)
+            : 0,
+        }))
+        .filter((r: { similarity: number }) => r.similarity > 0.5)
         .sort((a: { similarity: number }, b: { similarity: number }) => b.similarity - a.similarity)
         .slice(0, topK);
     } else {
@@ -153,10 +146,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (sid) {
-      await getSupabase().from("chat_messages").insert([
+      const { error: saveError } = await getSupabase().from("chat_messages").insert([
         { session_id: sid, role: "user", content: question.trim() },
         { session_id: sid, role: "assistant", content: answer, sources },
       ]);
+      if (saveError) {
+        console.error("保存聊天历史失败:", saveError.message);
+      }
     }
 
     return NextResponse.json({

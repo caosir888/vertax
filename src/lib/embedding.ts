@@ -31,24 +31,38 @@ export async function getEmbedding(text: string): Promise<number[]> {
   return json.data[0].embedding;
 }
 
-// 批量向量化（一次 API 调用处理多条文本，省费用）
+// 批量向量化（自动分批，每批最多 100 条，省费用）
 export async function getEmbeddings(texts: string[]): Promise<number[][]> {
-  const res = await fetch(EMBEDDING_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${EMBEDDING_API_KEY}`,
-    },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Embedding API 错误 (${res.status}): ${err}`);
+  if (!EMBEDDING_API_KEY) {
+    throw new Error("未配置 EMBEDDING_API_KEY 环境变量");
   }
 
-  const json: EmbeddingResponse = await res.json();
-  return json.data.map((d) => d.embedding);
+  const BATCH_SIZE = 100;
+  const results: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    const res = await fetch(EMBEDDING_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${EMBEDDING_API_KEY}`,
+      },
+      body: JSON.stringify({ model: EMBEDDING_MODEL, input: batch }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Embedding API 错误 (${res.status}): ${err}`);
+    }
+
+    const json: EmbeddingResponse = await res.json();
+    for (const d of json.data) {
+      results.push(d.embedding);
+    }
+  }
+
+  return results;
 }
 
 // 余弦相似度（两个向量越相似值越接近1）

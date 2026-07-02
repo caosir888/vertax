@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { getEmbedding } from "@/lib/embedding";
+import { getEmbedding, cosineSimilarity } from "@/lib/embedding";
 
 // POST /api/search/semantic — 语义搜索
 // Body: { query: "问题", topK?: 5, knowledge_base_id?: "xxx" }
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // 使用 <=> 运算符（余弦距离），1 - 距离 = 相似度
     const { data, error } = await getSupabase().rpc("search_chunks", {
       query_embedding: queryVector,
-      match_threshold: 0.3,
+      match_threshold: 0.5,
       match_count: topK,
       filter_team_id: user.team_id,
       filter_knowledge_base_id: knowledge_base_id || null,
@@ -67,21 +67,13 @@ export async function POST(request: NextRequest) {
 
       // 在内存中计算相似度并排序
       const results = (rawData || [])
-        .map((chunk: { id: string; content: string; chunk_index: number; embedding: number[] }) => {
-          let sim = 0;
-          if (chunk.embedding && Array.isArray(chunk.embedding)) {
-            // 计算余弦相似度
-            let dot = 0, normA = 0, normB = 0;
-            for (let i = 0; i < queryVector.length; i++) {
-              dot += queryVector[i] * chunk.embedding[i];
-              normA += queryVector[i] * queryVector[i];
-              normB += chunk.embedding[i] * chunk.embedding[i];
-            }
-            sim = dot / (Math.sqrt(normA) * Math.sqrt(normB));
-          }
-          return { ...chunk, similarity: sim };
-        })
-        .filter((r: { similarity: number }) => r.similarity > 0.3)
+        .map((chunk: { id: string; content: string; chunk_index: number; embedding: number[] }) => ({
+          ...chunk,
+          similarity: chunk.embedding && Array.isArray(chunk.embedding)
+            ? cosineSimilarity(queryVector, chunk.embedding)
+            : 0,
+        }))
+        .filter((r: { similarity: number }) => r.similarity > 0.5)
         .sort((a: { similarity: number }, b: { similarity: number }) => b.similarity - a.similarity)
         .slice(0, topK)
         .map(({ embedding, ...rest }: { embedding?: unknown; id: string; content: string; chunk_index: number; similarity: number }) => rest);
