@@ -72,7 +72,7 @@ create policy "document_chunks_all" on document_chunks for all using (true);
 
 -- 6. 开启 pgvector 扩展 + 加 embedding 列（Day 31 — 向量化）
 create extension if not exists vector;
-alter table document_chunks add column if not exists embedding vector(1536);
+alter table document_chunks add column if not exists embedding vector(1024);
 
 -- 7. 知识库表（Day 33 — 多知识库管理）
 create table if not exists knowledge_bases (
@@ -114,7 +114,7 @@ create policy "chat_messages_all" on chat_messages for all using (true);
 
 -- 11. pgvector 语义搜索函数（RPC）
 create or replace function search_chunks(
-  query_embedding vector(1536),
+  query_embedding vector(1024),
   match_threshold float default 0.5,
   match_count int default 5,
   filter_team_id uuid default null,

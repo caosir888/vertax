@@ -1,5 +1,5 @@
 // 文本向量化 — 调用 OpenAI 兼容 Embedding API
-// 默认：OpenAI text-embedding-3-small（1536 维）
+// 默认：GLM embedding-2（1024 维）
 // 可配环境变量切换到其他兼容服务
 
 const EMBEDDING_API_URL =

@@ -140,12 +140,12 @@ create policy "chat_messages_all" on chat_messages for all using (true);
 -- 13. 开启 pgvector 扩展（向量搜索）
 create extension if not exists vector;
 
--- 14. 给 document_chunks 加 embedding 列（1536 维 = OpenAI text-embedding-3-small）
-alter table document_chunks add column if not exists embedding vector(1536);
+-- 14. 给 document_chunks 加 embedding 列（1024 维 = GLM embedding-2）
+alter table document_chunks add column if not exists embedding vector(1024);
 
 -- 15. pgvector 语义搜索函数（RPC）
 create or replace function search_chunks(
-  query_embedding vector(1536),
+  query_embedding vector(1024),
   match_threshold float default 0.5,
   match_count int default 5,
   filter_team_id uuid default null,
