@@ -18,31 +18,4 @@ CREATE TABLE IF NOT EXISTS site_inquiries (
 CREATE INDEX IF NOT EXISTS idx_site_inquiries_site_id ON site_inquiries(site_id);
 CREATE INDEX IF NOT EXISTS idx_site_inquiries_team_id ON site_inquiries(team_id);
 
--- 3. RLS：公开插入（访客提交） + 团队成员查看
-ALTER TABLE site_inquiries ENABLE ROW LEVEL SECURITY;
-
--- 允许任何人插入（访客提交表单）
-DROP POLICY IF EXISTS site_inquiries_insert ON site_inquiries;
-CREATE POLICY site_inquiries_insert ON site_inquiries
-  FOR INSERT
-  WITH CHECK (true);
-
--- 允许团队成员查看自己团队的询盘
-DROP POLICY IF EXISTS site_inquiries_select ON site_inquiries;
-CREATE POLICY site_inquiries_select ON site_inquiries
-  FOR SELECT
-  USING (
-    auth.uid() IN (
-      SELECT user_id FROM team_members WHERE team_id = site_inquiries.team_id
-    )
-  );
-
--- 允许团队成员删除自己团队的询盘
-DROP POLICY IF EXISTS site_inquiries_delete ON site_inquiries;
-CREATE POLICY site_inquiries_delete ON site_inquiries
-  FOR DELETE
-  USING (
-    auth.uid() IN (
-      SELECT user_id FROM team_members WHERE team_id = site_inquiries.team_id
-    )
-  );
+-- 3. 不启用 RLS，应用层已通过 JWT + team_id 做权限控制
