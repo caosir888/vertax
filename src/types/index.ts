@@ -65,6 +65,20 @@ export interface ApiKey {
   last_used_at?: string;
 }
 
+// ========== 知识库文档 ==========
+
+export interface Document {
+  id: string;
+  team_id: string;
+  user_id: string;
+  name: string;
+  file_url: string;
+  file_size: number;
+  file_type: string;
+  status: string;
+  created_at: string;
+}
+
 // ========== 通用类型 ==========
 
 export type Role = "owner" | "admin" | "editor" | "viewer";

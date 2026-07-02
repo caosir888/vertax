@@ -73,6 +73,21 @@ create table notifications (
 alter table notifications enable row level security;
 create policy "notifications_all" on notifications for all using (true);
 
+-- 7. 知识库文档表
+create table documents (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  name text not null,
+  file_url text not null,
+  file_size integer default 0,
+  file_type text default '',
+  status text default 'ready',
+  created_at timestamptz default now()
+);
+alter table documents enable row level security;
+create policy "documents_all" on documents for all using (true);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;

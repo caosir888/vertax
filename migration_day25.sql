@@ -28,3 +28,33 @@ create table if not exists notifications (
 );
 alter table notifications enable row level security;
 create policy "notifications_all" on notifications for all using (true);
+
+-- 4. 创建 documents 表（Day 29 — 知识库文档）
+create table if not exists documents (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  name text not null,
+  file_url text not null,
+  file_size integer default 0,
+  file_type text default '',
+  status text default 'ready',
+  created_at timestamptz default now()
+);
+alter table documents enable row level security;
+create policy "documents_all" on documents for all using (true);
+
+-- ==================== Supabase Storage 配置 ====================
+-- 在 Supabase 后台 → Storage → 新建 Bucket：
+--   Bucket name: documents
+--   Public bucket: 勾选（公开访问）
+--   RLS policy: 允许 authenticated 用户上传
+-- 具体 SQL（在 Supabase SQL Editor 运行）：
+--
+-- insert into storage.buckets (id, name, public) values ('documents', 'documents', true);
+-- create policy "Anyone can read documents"
+--   on storage.objects for select using (bucket_id = 'documents');
+-- create policy "Authenticated can upload documents"
+--   on storage.objects for insert with check (bucket_id = 'documents' and auth.role() = 'authenticated');
+-- create policy "Owner can delete documents"
+--   on storage.objects for delete using (bucket_id = 'documents' and auth.role() = 'authenticated');
