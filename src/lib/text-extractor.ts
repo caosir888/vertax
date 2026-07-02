@@ -3,17 +3,16 @@
 
 import mammoth from "mammoth";
 
-// pdf-parse 是 CJS 模块，用 require 导入
-const pdfParse = require("pdf-parse");
-
 export async function extractText(
   buffer: Buffer,
   fileType: string,
   fileName: string
 ): Promise<string> {
-  // PDF
+  // PDF — 运行时动态 require，避免构建时加载浏览器依赖
   if (fileType === "application/pdf") {
-    const data = await pdfParse(buffer);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require("pdf-parse");
+    const data: { text: string } = await pdfParse(buffer);
     return data.text;
   }
 
@@ -32,7 +31,6 @@ export async function extractText(
 
 // ========== 文本分块 ==========
 
-// 长段落按句子边界拆分为子块
 function splitLongParagraph(text: string, maxSize: number): string[] {
   const sentences = text.split(/(?<=[。！？.!?\n])\s*/);
   const result: string[] = [];
@@ -50,13 +48,12 @@ function splitLongParagraph(text: string, maxSize: number): string[] {
     }
   }
   if (current.trim()) result.push(current.trim());
-  return result.length > 0 ? result : [text]; // fallback: 无法按句子拆分就原样返回
+  return result.length > 0 ? result : [text];
 }
 
 export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): string[] {
   if (!text || !text.trim()) return [];
 
-  // 按段落分割（双换行）
   const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim());
 
   const chunks: string[] = [];
@@ -65,14 +62,11 @@ export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): str
   for (const para of paragraphs) {
     const trimmed = para.trim();
 
-    // 单段超过 maxChunkSize → 按句子拆开
     if (trimmed.length > maxChunkSize) {
-      // 先把当前累积的块输出
       if (current.trim()) {
         chunks.push(current.trim());
         current = "";
       }
-      // 长段落按句子拆分
       const subChunks = splitLongParagraph(trimmed, maxChunkSize);
       for (const sub of subChunks) {
         if (current && (current.length + sub.length + 2) > maxChunkSize) {
@@ -87,7 +81,6 @@ export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): str
       continue;
     }
 
-    // 正常：单段加到当前块
     if (current && (current.length + trimmed.length + 2) > maxChunkSize) {
       chunks.push(current.trim());
       const tail = current.length > overlap ? current.slice(-overlap) : current;

@@ -3,6 +3,9 @@ import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { extractText, chunkText } from "@/lib/text-extractor";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // POST /api/documents/[id]/parse — 解析文档文本并分块
 export async function POST(
   _request: Request,
