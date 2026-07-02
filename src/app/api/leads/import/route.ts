@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-logger";
 
 // POST /api/leads/import — CSV 批量导入
 export async function POST(request: NextRequest) {
@@ -42,6 +43,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "导入线索", target: `${data.length} 条` });
 
   return NextResponse.json({ data: { imported: data.length } });
 }

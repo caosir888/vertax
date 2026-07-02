@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-logger";
 
 // POST /api/content/[id]/publish — 记录一次发布
 export async function POST(
@@ -41,6 +42,8 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "发布内容", target: id, details: platform });
 
   return NextResponse.json({ data });
 }

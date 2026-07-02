@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-logger";
 
 // GET /api/leads/[id] — 获取单条线索
 export async function GET(
@@ -68,6 +69,8 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "更新线索", target: data.name || id });
+
   return NextResponse.json({ data });
 }
 
@@ -92,6 +95,8 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "删除线索", target: id });
 
   return NextResponse.json({ data: "ok" });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-logger";
 
 // GET /api/leads — 获取线索列表（支持筛选和搜索）
 export async function GET(request: NextRequest) {
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "创建线索", target: data.name });
 
   return NextResponse.json({ data }, { status: 201 });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-logger";
 
 // GET /api/content — 获取内容列表（支持筛选和搜索）
 // Query: ?status=draft&language=zh-CN&template_id=product-intro&search=关键词
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "创建内容", target: data.title });
 
   return NextResponse.json({ data }, { status: 201 });
 }
