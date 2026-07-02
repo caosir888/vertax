@@ -1,24 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ name: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((json) => {
         if (json.data) setUser(json.data);
-      });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-2xl font-bold text-black">
-          欢迎回来，{user?.name || "..."}！
-        </h1>
+        {loading ? (
+          <Skeleton className="h-8 w-48" />
+        ) : (
+          <h1 className="text-2xl font-bold text-black">
+            欢迎回来，{user?.name || "..."}！
+          </h1>
+        )}
         <p className="mt-2 text-sm text-zinc-500">
           VertaX AI 驱动的 B2B 获客平台
         </p>

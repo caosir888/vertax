@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { toast } from "sonner";
 
 interface Memo {
   id: string;
@@ -23,6 +26,8 @@ export default function MemosPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [adding, setAdding] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
+  const [delId, setDelId] = useState("");
 
   // 加载自己的备忘录
   async function fetchMemos() {
@@ -55,20 +60,27 @@ export default function MemosPage() {
       });
       setTitle("");
       setContent("");
+      toast.success("备忘录已添加");
       fetchMemos();
     } catch {
-      // ignore
+      toast.error("添加失败");
     } finally {
       setAdding(false);
     }
   }
 
-  async function deleteMemo(id: string) {
+  function promptDelete(id: string) {
+    setDelId(id);
+    setDelOpen(true);
+  }
+
+  async function deleteMemo() {
     try {
-      await fetch(`/api/memos/${id}`, { method: "DELETE" });
+      await fetch(`/api/memos/${delId}`, { method: "DELETE" });
+      toast.success("备忘录已删除");
       fetchMemos();
     } catch {
-      // ignore
+      toast.error("删除失败");
     }
   }
 
@@ -109,7 +121,15 @@ export default function MemosPage() {
         {/* 备忘录列表 */}
         <div className="mt-6">
           {loading ? (
-            <p className="text-center text-sm text-zinc-400">加载中...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-xl border border-zinc-200 bg-white p-5">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="mt-2 h-4 w-full" />
+                  <Skeleton className="mt-1 h-4 w-2/3" />
+                </div>
+              ))}
+            </div>
           ) : memos.length === 0 ? (
             <div className="rounded-lg border border-dashed border-zinc-300 py-16 text-center text-sm text-zinc-400">
               还没有备忘录，在上方添加一个吧
@@ -141,7 +161,7 @@ export default function MemosPage() {
                     <Button
                       variant="ghost"
                       size="xs"
-                      onClick={() => deleteMemo(memo.id)}
+                      onClick={() => promptDelete(memo.id)}
                       className="text-zinc-400 hover:text-red-500 shrink-0"
                     >
                       删除
@@ -153,6 +173,14 @@ export default function MemosPage() {
           )}
         </div>
       </main>
+      <ConfirmDialog
+        open={delOpen}
+        onOpenChange={setDelOpen}
+        title="删除备忘录"
+        description="删除后无法恢复，确定要删除这条备忘录吗？"
+        confirmLabel="删除"
+        onConfirm={deleteMemo}
+      />
     </div>
   );
 }

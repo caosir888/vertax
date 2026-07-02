@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { toast } from "sonner";
 
 // ========== 类型 ==========
 
@@ -77,8 +80,12 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-sm text-zinc-400">加载中...</p>
+      <div className="px-4 py-8 sm:px-8 sm:py-12">
+        <div className="mx-auto max-w-3xl space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-80 rounded-lg" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -125,23 +132,26 @@ function TeamInfoTab({ team, onUpdate }: { team: Team | null; onUpdate: () => vo
   const [industry, setIndustry] = useState(team?.industry || "");
   const [logoUrl, setLogoUrl] = useState(team?.logo_url || "");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
 
   async function save() {
     setSaving(true);
-    setMessage("");
-    const res = await fetch("/api/team", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, company_name: companyName, industry, logo_url: logoUrl }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (json.error) {
-      setMessage("保存失败：" + json.error);
-    } else {
-      setMessage("保存成功");
-      onUpdate();
+    try {
+      const res = await fetch("/api/team", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, company_name: companyName, industry, logo_url: logoUrl }),
+      });
+      const json = await res.json();
+      if (json.error) {
+        toast.error(json.error);
+      } else {
+        toast.success("保存成功");
+        onUpdate();
+      }
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -176,11 +186,6 @@ function TeamInfoTab({ team, onUpdate }: { team: Team | null; onUpdate: () => vo
         <Button onClick={save} disabled={saving || !name.trim()}>
           {saving ? "保存中..." : "保存修改"}
         </Button>
-        {message && (
-          <span className={`text-sm ${message.includes("失败") ? "text-red-500" : "text-green-600"}`}>
-            {message}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -189,33 +194,51 @@ function TeamInfoTab({ team, onUpdate }: { team: Team | null; onUpdate: () => vo
 // ========== Tab 2：成员管理 ==========
 
 function MembersTab({ members, onUpdate }: { members: Member[]; onUpdate: () => void }) {
-  const [actionMsg, setActionMsg] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string>("");
+  const [removeName, setRemoveName] = useState("");
 
   async function changeRole(memberId: string, role: string) {
-    setActionMsg("");
-    const res = await fetch(`/api/team/members/${memberId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    });
-    const json = await res.json();
-    if (json.error) setActionMsg(json.error);
-    else onUpdate();
+    try {
+      const res = await fetch(`/api/team/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const json = await res.json();
+      if (json.error) toast.error(json.error);
+      else { toast.success("角色已更新"); onUpdate(); }
+    } catch {
+      toast.error("网络错误");
+    }
   }
 
-  async function removeMember(memberId: string) {
-    if (!confirm("确定要移除这位成员吗？")) return;
-    setActionMsg("");
-    const res = await fetch(`/api/team/members/${memberId}`, { method: "DELETE" });
-    const json = await res.json();
-    if (json.error) setActionMsg(json.error);
-    else onUpdate();
+  function promptRemove(memberId: string, name: string) {
+    setRemoveTarget(memberId);
+    setRemoveName(name);
+    setConfirmOpen(true);
+  }
+
+  async function removeMember() {
+    try {
+      const res = await fetch(`/api/team/members/${removeTarget}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.error) toast.error(json.error);
+      else { toast.success("成员已移除"); onUpdate(); }
+    } catch {
+      toast.error("网络错误");
+    }
   }
 
   return (
+    <>
     <div className="rounded-xl border border-zinc-200 bg-white">
       {members.length === 0 ? (
-        <div className="py-16 text-center text-sm text-zinc-400">暂无团队成员</div>
+        <div className="py-16 text-center">
+          <div className="text-2xl">👥</div>
+          <p className="mt-2 text-sm text-zinc-400">暂无团队成员</p>
+          <p className="mt-1 text-xs text-zinc-300">后续将支持邀请链接加入团队</p>
+        </div>
       ) : (
         <div className="divide-y divide-zinc-100">
           {members.map((m) => (
@@ -245,7 +268,7 @@ function MembersTab({ members, onUpdate }: { members: Member[]; onUpdate: () => 
                       ))}
                     </select>
                     <button
-                      onClick={() => removeMember(m.id)}
+                      onClick={() => promptRemove(m.id, m.user_name)}
                       className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       移除
@@ -259,10 +282,16 @@ function MembersTab({ members, onUpdate }: { members: Member[]; onUpdate: () => 
           ))}
         </div>
       )}
-      {actionMsg && (
-        <div className="border-t border-zinc-100 px-6 py-3 text-sm text-red-500">{actionMsg}</div>
-      )}
-    </div>
+      </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="移除成员"
+        description={`确定要移除 ${removeName} 吗？移除后该成员将无法访问团队数据。`}
+        confirmLabel="移除"
+        onConfirm={removeMember}
+      />
+    </>
   );
 }
 
@@ -272,24 +301,36 @@ function ApiKeysTab({ apiKeys, onUpdate }: { apiKeys: ApiKey[]; onUpdate: () => 
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [delOpen, setDelOpen] = useState(false);
+  const [delTarget, setDelTarget] = useState("");
 
   async function createKey() {
     if (!name.trim()) return;
     setCreating(true);
-    await fetch("/api/api-keys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    setName("");
-    setCreating(false);
-    onUpdate();
+    try {
+      const res = await fetch("/api/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      const json = await res.json();
+      if (json.error) toast.error(json.error);
+      else { toast.success("API Key 已创建"); setName(""); onUpdate(); }
+    } catch {
+      toast.error("网络错误");
+    } finally {
+      setCreating(false);
+    }
   }
 
-  async function deleteKey(id: string) {
-    if (!confirm("删除后该 API Key 将立即失效，确定删除？")) return;
-    await fetch(`/api/api-keys/${id}`, { method: "DELETE" });
-    onUpdate();
+  async function deleteKey() {
+    try {
+      await fetch(`/api/api-keys/${delTarget}`, { method: "DELETE" });
+      toast.success("API Key 已删除");
+      onUpdate();
+    } catch {
+      toast.error("网络错误");
+    }
   }
 
   async function copyKey(key: string) {
@@ -319,8 +360,10 @@ function ApiKeysTab({ apiKeys, onUpdate }: { apiKeys: ApiKey[]; onUpdate: () => 
       {/* Key 列表 */}
       <div className="rounded-xl border border-zinc-200 bg-white">
         {apiKeys.length === 0 ? (
-          <div className="py-16 text-center text-sm text-zinc-400">
-            还没有 API Key，创建一个吧
+          <div className="py-16 text-center">
+            <div className="text-2xl">🔑</div>
+            <p className="mt-2 text-sm text-zinc-400">还没有 API Key</p>
+            <p className="mt-1 text-xs text-zinc-300">创建 API Key 后可用于外部系统接入</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
@@ -343,7 +386,7 @@ function ApiKeysTab({ apiKeys, onUpdate }: { apiKeys: ApiKey[]; onUpdate: () => 
                     {copied === ak.key ? "已复制" : "复制"}
                   </button>
                   <button
-                    onClick={() => deleteKey(ak.id)}
+                    onClick={() => { setDelTarget(ak.id); setDelOpen(true); }}
                     className="rounded-md px-2 py-1 text-xs text-zinc-400 hover:text-red-500 transition-colors"
                   >
                     删除
@@ -354,6 +397,14 @@ function ApiKeysTab({ apiKeys, onUpdate }: { apiKeys: ApiKey[]; onUpdate: () => 
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={delOpen}
+        onOpenChange={setDelOpen}
+        title="删除 API Key"
+        description="删除后该 API Key 将立即失效，使用该 Key 的应用将无法访问 API。确定删除？"
+        confirmLabel="删除"
+        onConfirm={deleteKey}
+      />
     </div>
   );
 }
