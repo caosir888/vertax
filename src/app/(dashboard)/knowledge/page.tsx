@@ -56,6 +56,10 @@ export default function KnowledgePage() {
   const [delId, setDelId] = useState("");
   const [kbOpen, setKbOpen] = useState(false);
   const [kbForm, setKbForm] = useState({ name: "", description: "" });
+  const [kbDelOpen, setKbDelOpen] = useState(false);
+  const [kbDelId, setKbDelId] = useState("");
+  const [renamingKbId, setRenamingKbId] = useState("");
+  const [renamingName, setRenamingName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadKbs(); }, []);
@@ -194,6 +198,36 @@ export default function KnowledgePage() {
     }
   }
 
+  async function deleteKb(kbId: string) {
+    try {
+      const res = await fetch(`/api/knowledge-bases/${kbId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.error) toast.error(json.error);
+      else {
+        toast.success("知识库已删除");
+        if (selectedKbId === kbId) setSelectedKbId("");
+        loadKbs();
+      }
+    } catch {
+      toast.error("删除失败");
+    }
+  }
+
+  async function renameKb(kbId: string, newName: string) {
+    if (!newName.trim()) return;
+    try {
+      await fetch(`/api/knowledge-bases/${kbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      toast.success("已重命名");
+      loadKbs();
+    } catch {
+      toast.error("重命名失败");
+    }
+  }
+
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-3xl">
@@ -233,8 +267,46 @@ export default function KnowledgePage() {
             onClick={() => { setKbForm({ name: "", description: "" }); setKbOpen(true); }}
             className="text-sm text-indigo-500 hover:text-indigo-700 transition-colors"
           >
-            + 新建知识库
+            + 新建
           </button>
+          {kbs.length > 0 && (
+            <div className="flex items-center gap-1 text-sm text-zinc-400">
+              {renamingKbId ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    value={renamingName}
+                    onChange={(e) => setRenamingName(e.target.value)}
+                    className="w-32 rounded border border-zinc-300 px-2 py-0.5 text-xs focus:border-black focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { renameKb(renamingKbId, renamingName); setRenamingKbId(""); }
+                      if (e.key === "Escape") setRenamingKbId("");
+                    }}
+                  />
+                  <button onClick={() => { renameKb(renamingKbId, renamingName); setRenamingKbId(""); }} className="text-indigo-500">✓</button>
+                  <button onClick={() => setRenamingKbId("")} className="text-zinc-400">✗</button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      const kb = kbs.find((k) => k.id === selectedKbId);
+                      if (kb) { setRenamingKbId(kb.id); setRenamingName(kb.name); }
+                    }}
+                    className="hover:text-indigo-500 transition-colors"
+                  >
+                    重命名
+                  </button>
+                  <span>·</span>
+                  <button
+                    onClick={() => { setKbDelId(selectedKbId); setKbDelOpen(true); }}
+                    className="hover:text-red-500 transition-colors"
+                  >
+                    删除
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ========== 上传区域 ========== */}
@@ -358,6 +430,15 @@ export default function KnowledgePage() {
         description="删除后文档和解析数据将被移除，确定删除？"
         confirmLabel="删除"
         onConfirm={deleteDoc}
+      />
+
+      <ConfirmDialog
+        open={kbDelOpen}
+        onOpenChange={setKbDelOpen}
+        title="删除知识库"
+        description="删除知识库后，其中的文档不会被删除（仅移除关联）。确定删除？"
+        confirmLabel="删除"
+        onConfirm={() => { deleteKb(kbDelId); }}
       />
 
       {/* 新建知识库对话框 */}

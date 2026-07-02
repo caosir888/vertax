@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -14,12 +15,16 @@ export async function POST(request: NextRequest) {
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("id, name, email")
+    .select("id, name, email, password")
     .eq("email", email)
-    .eq("password", password)
     .maybeSingle();
 
   if (error || !user) {
+    return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
+  }
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) {
     return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
   }
 

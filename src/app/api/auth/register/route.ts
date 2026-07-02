@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -29,10 +30,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "该邮箱已被注册" }, { status: 409 });
   }
 
+  // 哈希密码
+  const hashedPassword = await bcrypt.hash(password, 10);
+
   // 写入用户
   const { data: user, error } = await supabase
     .from("users")
-    .insert({ name, email, password })
+    .insert({ name, email, password: hashedPassword })
     .select("id, name, email, created_at")
     .single();
 

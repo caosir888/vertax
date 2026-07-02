@@ -28,6 +28,11 @@ export default function MemosPage() {
   const [adding, setAdding] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delId, setDelId] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editMemo, setEditMemo] = useState<Memo | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // 加载自己的备忘录
   async function fetchMemos() {
@@ -81,6 +86,37 @@ export default function MemosPage() {
       fetchMemos();
     } catch {
       toast.error("删除失败");
+    }
+  }
+
+  function openEdit(memo: Memo) {
+    setEditMemo(memo);
+    setEditTitle(memo.title);
+    setEditContent(memo.content);
+    setEditOpen(true);
+  }
+
+  async function saveEdit() {
+    if (!editMemo || !editTitle.trim() || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/memos/${editMemo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editTitle.trim(), content: editContent.trim() }),
+      });
+      const json = await res.json();
+      if (json.error) {
+        toast.error(json.error);
+      } else {
+        toast.success("备忘录已更新");
+        setEditOpen(false);
+        fetchMemos();
+      }
+    } catch {
+      toast.error("保存失败");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -158,14 +194,24 @@ export default function MemosPage() {
                         {new Date(memo.created_at).toLocaleString("zh-CN")}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => promptDelete(memo.id)}
-                      className="text-zinc-400 hover:text-red-500 shrink-0"
-                    >
-                      删除
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => openEdit(memo)}
+                        className="text-zinc-400 hover:text-indigo-500"
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => promptDelete(memo.id)}
+                        className="text-zinc-400 hover:text-red-500"
+                      >
+                        删除
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -181,6 +227,41 @@ export default function MemosPage() {
         confirmLabel="删除"
         onConfirm={deleteMemo}
       />
+
+      {/* 编辑弹窗 */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-black">编辑备忘录</h2>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">标题</label>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                  onKeyDown={(e) => e.key === "Enter" && saveEdit()}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">内容</label>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm placeholder:text-zinc-400 focus:border-black focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button>
+              <Button onClick={saveEdit} disabled={saving || !editTitle.trim()}>
+                {saving ? "保存中..." : "保存"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
