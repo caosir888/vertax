@@ -212,3 +212,32 @@ create table if not exists sites (
 );
 alter table sites enable row level security;
 create policy "sites_all" on sites for all using (true);
+
+-- 17. 发布记录表（Day 39 — 内容发布工作流）
+create table if not exists publish_records (
+  id uuid primary key default gen_random_uuid(),
+  content_id uuid references contents(id) on delete cascade,
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  platform text not null default 'manual',
+  url text default '',
+  notes text default '',
+  published_at timestamptz default now()
+);
+alter table publish_records enable row level security;
+create policy "publish_records_all" on publish_records for all using (true);
+
+-- 18. 内容分析表（Day 40 — 内容效果追踪）
+create table if not exists content_analytics (
+  id uuid primary key default gen_random_uuid(),
+  content_id uuid references contents(id) on delete cascade,
+  team_id uuid references tenants(id) on delete cascade,
+  views int default 0,
+  likes int default 0,
+  comments int default 0,
+  shares int default 0,
+  platform text default '',
+  recorded_at timestamptz default now()
+);
+alter table content_analytics enable row level security;
+create policy "content_analytics_all" on content_analytics for all using (true);

@@ -3,6 +3,13 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { templates, languages, type Template } from "@/lib/templates";
 
@@ -24,10 +31,36 @@ interface ContentItem {
   versions?: { id: string; version_number: number; content: string; created_at: string }[];
 }
 
+interface PublishRecord {
+  id: string;
+  content_id: string;
+  platform: string;
+  url: string;
+  notes: string;
+  published_at: string;
+  contents?: { title: string };
+}
+
+interface ContentAnalytics {
+  stats: { total: number; published: number; review: number; draft: number; totalPublishes: number };
+  platformCount: Record<string, number>;
+  topContent: { content_id: string; views: number; likes: number; engagement: number }[];
+  recentContents: ContentItem[];
+}
+
 const statusLabels: Record<string, { label: string; color: string }> = {
   draft: { label: "草稿", color: "bg-zinc-100 text-zinc-600" },
   review: { label: "审核中", color: "bg-yellow-100 text-yellow-700" },
   published: { label: "已发布", color: "bg-green-100 text-green-700" },
+};
+
+const platformLabels: Record<string, string> = {
+  manual: "手动发布",
+  linkedin: "LinkedIn",
+  wechat: "微信公众号",
+  website: "官网",
+  email: "邮件",
+  other: "其他",
 };
 
 const templateIcons: Record<string, string> = {
@@ -38,7 +71,7 @@ const templateIcons: Record<string, string> = {
 };
 
 export default function ContentPage() {
-  const [view, setView] = useState<"workshop" | "library">("workshop");
+  const [view, setView] = useState<"workshop" | "library" | "records">("workshop");
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [language, setLanguage] = useState("zh-CN");
@@ -54,6 +87,18 @@ export default function ContentPage() {
   const [saving, setSaving] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delId, setDelId] = useState("");
+
+  // 发布
+  const [pubOpen, setPubOpen] = useState(false);
+  const [pubId, setPubId] = useState("");
+  const [pubForm, setPubForm] = useState({ platform: "manual", url: "", notes: "" });
+  const [records, setRecords] = useState<PublishRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+
+  // 分析
+  const [analytics, setAnalytics] = useState<ContentAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState("");
 
   // 分析 & 翻译
   const [showAnalyze, setShowAnalyze] = useState(false);
@@ -86,6 +131,7 @@ export default function ContentPage() {
 
   useEffect(() => {
     if (view === "library") loadItems();
+    if (view === "records") { loadRecords(); loadAnalytics(); }
   }, [view, libFilter]);
 
   async function loadItems() {
@@ -156,6 +202,60 @@ export default function ContentPage() {
     if (t) setSelectedTemplate(t);
     setLanguage(item.language);
     setVersions([{ content: item.content }]);
+  }
+
+  // ========== 发布 ==========
+
+  function openPublish(itemId: string) {
+    setPubId(itemId);
+    setPubForm({ platform: "manual", url: "", notes: "" });
+    setPubOpen(true);
+  }
+
+  async function doPublish() {
+    try {
+      const res = await fetch(`/api/content/${pubId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pubForm),
+      });
+      const json = await res.json();
+      if (json.error) toast.error(json.error);
+      else {
+        toast.success("已发布");
+        setPubOpen(false);
+        loadItems();
+      }
+    } catch {
+      toast.error("发布失败");
+    }
+  }
+
+  async function loadRecords() {
+    setRecordsLoading(true);
+    try {
+      const res = await fetch("/api/content/publish-records");
+      const json = await res.json();
+      if (json.data) setRecords(json.data);
+    } catch { /* ignore */ }
+    finally { setRecordsLoading(false); }
+  }
+
+  // ========== 分析 ==========
+
+  async function loadAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const [analyticsRes, aiRes] = await Promise.all([
+        fetch("/api/content/analytics"),
+        fetch("/api/content/analytics", { method: "PATCH" }),
+      ]);
+      const aJson = await analyticsRes.json();
+      if (aJson.data) setAnalytics(aJson.data);
+      const aiJson = await aiRes.json();
+      if (aiJson.data?.suggestion) setAiSuggestion(aiJson.data.suggestion);
+    } catch { /* ignore */ }
+    finally { setAnalyticsLoading(false); }
   }
 
   function backToTemplates() {
@@ -296,6 +396,14 @@ export default function ContentPage() {
           >
             内容库
           </button>
+          <button
+            onClick={() => setView("records")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              view === "records" ? "bg-black text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            发布 & 分析
+          </button>
         </div>
 
         {/* ========== 内容库视图 ========== */}
@@ -387,6 +495,9 @@ export default function ContentPage() {
                       <button onClick={() => loadFromLibrary(item)} className="text-xs text-indigo-500 hover:text-indigo-700">
                         编辑
                       </button>
+                      <button onClick={() => openPublish(item.id)} className="text-xs text-emerald-500 hover:text-emerald-700">
+                        发布
+                      </button>
                       <button onClick={() => { setDelId(item.id); setDelOpen(true); }} className="text-xs text-zinc-400 hover:text-red-500">
                         删除
                       </button>
@@ -404,6 +515,94 @@ export default function ContentPage() {
               confirmLabel="删除"
               onConfirm={deleteItem}
             />
+          </div>
+        )}
+
+        {/* ========== 发布记录 & 分析 ========== */}
+        {view === "records" && (
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 发布记录 */}
+            <div className="rounded-xl border border-zinc-200 bg-white p-6">
+              <h3 className="text-sm font-bold text-black mb-4">发布记录</h3>
+              {recordsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (<div key={i} className="h-10 rounded bg-zinc-100 animate-pulse" />))}
+                </div>
+              ) : records.length === 0 ? (
+                <p className="text-sm text-zinc-300 text-center py-8">暂无发布记录</p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {records.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between py-2 border-b border-zinc-50 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-black">{r.contents?.title || "—"}</p>
+                        <p className="text-xs text-zinc-400">
+                          {platformLabels[r.platform] || r.platform} · {new Date(r.published_at).toLocaleDateString("zh-CN")}
+                        </p>
+                      </div>
+                      {r.url && (
+                        <a href={r.url} target="_blank" className="text-xs text-indigo-500 hover:text-indigo-700 shrink-0 ml-3">
+                          查看 →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 内容分析 */}
+            <div className="space-y-4">
+              {analyticsLoading ? (
+                <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                  <div className="space-y-3 animate-pulse">
+                    <div className="h-4 w-24 rounded bg-zinc-200" />
+                    <div className="h-3 w-full rounded bg-zinc-100" />
+                    <div className="h-3 w-5/6 rounded bg-zinc-100" />
+                  </div>
+                </div>
+              ) : analytics ? (
+                <>
+                  {/* 统计卡片 */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "内容总数", value: analytics.stats.total },
+                      { label: "已发布", value: analytics.stats.published },
+                      { label: "审核中", value: analytics.stats.review },
+                      { label: "发布次数", value: analytics.stats.totalPublishes },
+                    ].map((s) => (
+                      <div key={s.label} className="rounded-xl border border-zinc-200 bg-white p-4 text-center">
+                        <div className="text-2xl font-bold text-black">{s.value}</div>
+                        <div className="text-xs text-zinc-400 mt-0.5">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 平台分布 */}
+                  {Object.keys(analytics.platformCount).length > 0 && (
+                    <div className="rounded-xl border border-zinc-200 bg-white p-4">
+                      <h4 className="text-sm font-medium text-black mb-2">发布渠道</h4>
+                      <div className="space-y-1.5">
+                        {Object.entries(analytics.platformCount).map(([k, v]) => (
+                          <div key={k} className="flex items-center justify-between text-sm">
+                            <span className="text-zinc-600">{platformLabels[k] || k}</span>
+                            <span className="text-zinc-400">{v} 次</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI 建议 */}
+                  {aiSuggestion && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                      <h4 className="text-sm font-medium text-indigo-700 mb-2">AI 选题建议</h4>
+                      <p className="text-sm text-indigo-600 whitespace-pre-wrap leading-relaxed">{aiSuggestion}</p>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
           </div>
         )}
 
@@ -736,6 +935,52 @@ export default function ContentPage() {
           </>
         )}
         </>}
+
+        {/* 发布弹窗 */}
+        <Dialog open={pubOpen} onOpenChange={setPubOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>发布内容</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">发布渠道</label>
+                <select
+                  value={pubForm.platform}
+                  onChange={(e) => setPubForm({ ...pubForm, platform: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                >
+                  {Object.entries(platformLabels).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">发布链接</label>
+                <input
+                  value={pubForm.url}
+                  onChange={(e) => setPubForm({ ...pubForm, url: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">备注</label>
+                <textarea
+                  value={pubForm.notes}
+                  onChange={(e) => setPubForm({ ...pubForm, notes: e.target.value })}
+                  rows={2}
+                  placeholder="发布备注..."
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPubOpen(false)} className="rounded-xl">取消</Button>
+              <Button onClick={doPublish} className="rounded-xl bg-black text-white hover:bg-zinc-800">确认发布</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
