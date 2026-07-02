@@ -99,6 +99,12 @@ create table document_chunks (
 alter table document_chunks enable row level security;
 create policy "document_chunks_all" on document_chunks for all using (true);
 
+-- 9. 开启 pgvector 扩展（向量搜索）
+create extension if not exists vector;
+
+-- 10. 给 document_chunks 加 embedding 列（1536 维 = OpenAI text-embedding-3-small）
+alter table document_chunks add column if not exists embedding vector(1536);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;
