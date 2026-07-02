@@ -20,6 +20,7 @@ const navLinks = [
   { href: "/knowledge", label: "知识库", icon: "📚" },
   { href: "/content", label: "内容工坊", icon: "✍️" },
   { href: "/leads", label: "线索管理", icon: "👥" },
+  { href: "/sites", label: "独立站", icon: "🌐" },
   { href: "/analytics", label: "数据分析", icon: "📈" },
   { href: "/settings", label: "设置", icon: "⚙️" },
 ];

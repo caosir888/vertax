@@ -1,0 +1,66 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabase } from "@/lib/supabase";
+import { getSession } from "@/lib/auth";
+import { chat } from "@/lib/llm";
+import { siteTemplates, buildSitePrompt, parseSiteContent, type SiteSettings } from "@/lib/templates-site";
+
+// POST /api/sites/generate — AI 生成独立站内容
+export async function POST(request: NextRequest) {
+  const user = await getSession();
+  if (!user) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { template_id, settings } = body as { template_id: string; settings: SiteSettings };
+
+  const template = siteTemplates.find((t) => t.id === template_id);
+  if (!template) {
+    return NextResponse.json({ error: "模板不存在" }, { status: 400 });
+  }
+
+  if (!settings.companyName?.trim()) {
+    return NextResponse.json({ error: "公司名称不能为空" }, { status: 400 });
+  }
+
+  // 应用模板主色
+  const finalSettings = {
+    ...settings,
+    primaryColor: settings.primaryColor || template.primaryColor,
+  };
+
+  try {
+    const prompt = buildSitePrompt(template, finalSettings);
+    const result = await chat([{ role: "user", content: prompt }]);
+
+    const pages = parseSiteContent(result);
+
+    if (pages.length === 0) {
+      return NextResponse.json({ error: "AI 生成失败，请重试" }, { status: 500 });
+    }
+
+    // 保存到数据库
+    const { data, error } = await getSupabase()
+      .from("sites")
+      .insert({
+        team_id: user.team_id,
+        user_id: user.id,
+        name: finalSettings.companyName,
+        template_id,
+        pages: JSON.stringify(pages),
+        settings: JSON.stringify(finalSettings),
+        status: "draft",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data: { ...data, pages } });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "生成失败";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

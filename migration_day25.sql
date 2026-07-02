@@ -196,3 +196,19 @@ create table if not exists leads (
 );
 alter table leads enable row level security;
 create policy "leads_all" on leads for all using (true);
+
+-- 16. 独立站表（Day 41 — AI 建站）
+create table if not exists sites (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  name text not null default '我的独立站',
+  template_id text not null,
+  pages jsonb default '[]',
+  settings jsonb default '{}',
+  status text default 'draft',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table sites enable row level security;
+create policy "sites_all" on sites for all using (true);
