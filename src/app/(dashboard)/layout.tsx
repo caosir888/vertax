@@ -73,8 +73,8 @@ export default function DashboardLayout({
       {/* 移动端顶栏 */}
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 sm:hidden">
         <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="sm">☰</Button>
+          <SheetTrigger className="inline-flex items-center justify-center rounded-md p-2 text-sm font-medium hover:bg-zinc-100">
+            ☰
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <SidebarNav pathname={pathname} />
@@ -82,8 +82,8 @@ export default function DashboardLayout({
         </Sheet>
         <h1 className="text-sm font-bold text-black">VertaX</h1>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">👤</Button>
+          <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md p-2 text-sm font-medium hover:bg-zinc-100">
+            👤
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <div className="px-3 py-2 text-xs text-zinc-500">{user?.email}</div>

@@ -136,10 +136,8 @@ export default function Day17Page() {
                 从屏幕边缘滑出，适合移动端导航菜单
               </p>
               <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    打开 Sheet
-                  </Button>
+                <SheetTrigger className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 mt-3">
+                  打开 Sheet
                 </SheetTrigger>
                 <SheetContent side="left">
                   <SheetHeader>
@@ -167,10 +165,8 @@ export default function Day17Page() {
                 点击弹出菜单，适合用户头像、操作按钮组
               </p>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    打开菜单
-                  </Button>
+                <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 mt-3">
+                  打开菜单
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-40">
                   <DropdownMenuItem>个人资料</DropdownMenuItem>
@@ -190,10 +186,8 @@ export default function Day17Page() {
                 模态弹窗，适合确认操作、表单填写
               </p>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    打开对话框
-                  </Button>
+                <DialogTrigger className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 mt-3">
+                  打开对话框
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>

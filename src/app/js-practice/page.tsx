@@ -77,7 +77,7 @@ export default function JsPracticePage() {
     console.log("已登录:", isLoggedIn);
     console.log("有权限:", hasPermission);
     console.log("比较: 10 > 5 =", 10 > 5);
-    console.log("比较: 10 === 5 =", 10 === 5);
+    console.log("比较: 10 === 5 =", (10 as number) === (5 as number));
     console.log("且运算:", isLoggedIn && hasPermission);
     console.log("或运算:", isLoggedIn || hasPermission);
   }
