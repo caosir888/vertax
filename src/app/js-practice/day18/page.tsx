@@ -9,15 +9,16 @@ export default function Day18Page() {
 
   // TypeScript 演示：类型守卫
   const exampleUser: User = {
-    id: 1,
+    id: "1",
     name: "张三",
     email: "zs@example.com",
     created_at: new Date().toISOString(),
   };
 
   const exampleMemo: Memo = {
-    id: 1,
-    user_id: 1,
+    id: "1",
+    user_id: "1",
+    team_id: "1",
     title: "学习 TypeScript",
     content: "今天学了 interface 和 type",
     created_at: new Date().toISOString(),

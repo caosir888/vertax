@@ -12,7 +12,7 @@ export async function GET() {
   const { data, error } = await getSupabase()
     .from("memos")
     .select("*")
-    .eq("user_id", user.id) // 关键：只查自己的
+    .eq("team_id", user.team_id) // 租户隔离：只查本团队的
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await getSupabase()
     .from("memos")
-    .insert({ user_id: user.id, title: title.trim(), content: content || "" })
+    .insert({ user_id: user.id, team_id: user.team_id, title: title.trim(), content: content || "" })
     .select()
     .single();
 

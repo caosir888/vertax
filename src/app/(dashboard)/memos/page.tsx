@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface Memo {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   title: string;
   content: string;
   created_at: string;
@@ -58,7 +58,7 @@ export default function MemosPage() {
     fetchMemos();
   }
 
-  async function deleteMemo(id: number) {
+  async function deleteMemo(id: string) {
     await fetch(`/api/memos/${id}`, { method: "DELETE" });
     fetchMemos();
   }

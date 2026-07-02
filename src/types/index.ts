@@ -1,7 +1,7 @@
 // ========== 用户相关 ==========
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   password?: string;
@@ -9,16 +9,18 @@ export interface User {
 }
 
 export interface SessionUser {
-  id: number;
+  id: string;
   name: string;
   email: string;
+  team_id?: string;
 }
 
 // ========== 备忘录相关 ==========
 
 export interface Memo {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
+  team_id: string;
   title: string;
   content: string;
   created_at: string;

@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 interface Memo {
-  id: number;
+  id: string;
   title: string;
   content: string;
   created_at: string;

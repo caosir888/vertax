@@ -18,7 +18,7 @@ export async function GET(
     .from("memos")
     .select("*")
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("team_id", user.team_id) // 租户隔离：只能看本团队的
     .maybeSingle();
 
   if (!memo) {
@@ -40,12 +40,12 @@ export async function DELETE(
 
   const { id } = await params;
 
-  // 先验证这条备忘录属于当前用户
+  // 先验证这条备忘录属于当前团队
   const { data: memo } = await getSupabase()
     .from("memos")
     .select("id")
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("team_id", user.team_id) // 租户隔离：只能删本团队的
     .maybeSingle();
 
   if (!memo) {
