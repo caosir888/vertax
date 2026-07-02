@@ -210,6 +210,24 @@ create table content_versions (
 alter table content_versions enable row level security;
 create policy "content_versions_all" on content_versions for all using (true);
 
+-- 19. 线索表（Day 39 — CRM 线索管理）
+create table leads (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  name text not null,
+  company text default '',
+  email text default '',
+  phone text default '',
+  status text default 'new' check (status in ('new', 'contacted', 'qualified', 'proposal', 'won', 'lost')),
+  source text default '',
+  notes text default '',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table leads enable row level security;
+create policy "leads_all" on leads for all using (true);
+
 -- ==================== 迁移（Day 25） ====================
 -- 如果 tenants 表已存在，执行以下语句添加新字段：
 -- alter table tenants add column if not exists company_name text;
