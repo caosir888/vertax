@@ -34,7 +34,16 @@ interface ApiKey {
   created_at: string;
 }
 
-type Tab = "info" | "members" | "apikeys";
+type Tab = "info" | "members" | "apikeys" | "activity";
+
+interface ActivityLog {
+  id: string;
+  user_name: string;
+  action: string;
+  target: string;
+  details: string;
+  created_at: string;
+}
 
 const roleLabels: Record<string, string> = {
   owner: "拥有者",
@@ -55,6 +64,7 @@ export default function SettingsPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, []);
@@ -62,15 +72,17 @@ export default function SettingsPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [teamRes, membersRes, keysRes] = await Promise.all([
+      const [teamRes, membersRes, keysRes, logRes] = await Promise.all([
         fetch("/api/team"),
         fetch("/api/team/members"),
         fetch("/api/api-keys"),
+        fetch("/api/activity-logs"),
       ]);
-      const [t, m, k] = await Promise.all([teamRes.json(), membersRes.json(), keysRes.json()]);
+      const [t, m, k, l] = await Promise.all([teamRes.json(), membersRes.json(), keysRes.json(), logRes.json()]);
       if (t.data) setTeam(t.data);
       if (m.data) setMembers(m.data);
       if (k.data) setApiKeys(k.data);
+      if (l.data) setActivityLogs(l.data);
     } catch {
       // 网络错误时保持上次数据
     } finally {
@@ -101,6 +113,7 @@ export default function SettingsPage() {
             ["info", "团队信息"],
             ["members", "成员管理"],
             ["apikeys", "API 密钥"],
+            ["activity", "操作日志"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -118,6 +131,36 @@ export default function SettingsPage() {
           {tab === "info" && <TeamInfoTab team={team} onUpdate={loadData} />}
           {tab === "members" && <MembersTab members={members} onUpdate={loadData} />}
           {tab === "apikeys" && <ApiKeysTab apiKeys={apiKeys} onUpdate={loadData} />}
+          {tab === "activity" && (
+            <div className="rounded-xl border border-zinc-200 bg-white">
+              {activityLogs.length === 0 ? (
+                <div className="py-16 text-center">
+                  <p className="text-sm text-zinc-400">暂无操作记录</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-100">
+                  {activityLogs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-3 px-6 py-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-500 mt-0.5">
+                        {log.user_name?.charAt(0) || "?"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm text-zinc-700">
+                          <span className="font-medium">{log.user_name}</span>
+                          <span className="text-zinc-400"> {log.action}</span>
+                          {log.target && <span className="text-zinc-500"> · {log.target}</span>}
+                        </p>
+                        {log.details && <p className="text-xs text-zinc-400 truncate">{log.details}</p>}
+                        <p className="text-xs text-zinc-300 mt-0.5">
+                          {new Date(log.created_at).toLocaleString("zh-CN")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

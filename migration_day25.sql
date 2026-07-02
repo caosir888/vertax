@@ -241,3 +241,17 @@ create table if not exists content_analytics (
 );
 alter table content_analytics enable row level security;
 create policy "content_analytics_all" on content_analytics for all using (true);
+
+-- 19. 操作日志表（Day 43 — 协作 + 权限）
+create table if not exists activity_logs (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  user_name text default '',
+  action text not null,
+  target text default '',
+  details text default '',
+  created_at timestamptz default now()
+);
+alter table activity_logs enable row level security;
+create policy "activity_logs_all" on activity_logs for all using (true);
