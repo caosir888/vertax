@@ -14,6 +14,7 @@ const protectedPaths = [
   "/leads",
   "/analytics",
   "/sites",
+  "/tasks",
   "/settings",
 ];
 
@@ -48,6 +49,7 @@ export const config = {
     "/leads/:path*",
     "/analytics/:path*",
     "/sites/:path*",
+    "/tasks/:path*",
     "/settings/:path*",
   ],
 };

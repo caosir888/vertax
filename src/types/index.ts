@@ -84,3 +84,44 @@ export interface Document {
 export type Role = "owner" | "admin" | "editor" | "viewer";
 
 export type Status = "draft" | "review" | "published";
+
+// ========== 内容评论 ==========
+
+export interface ContentComment {
+  id: string;
+  content_id: string;
+  team_id: string;
+  user_id: string;
+  user_name: string;
+  body: string;
+  created_at: string;
+}
+
+// ========== 任务 ==========
+
+export interface Task {
+  id: string;
+  team_id: string;
+  creator_id: string;
+  assignee_id?: string;
+  assignee_name?: string;
+  target_type?: string;
+  target_id?: string;
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "done";
+  priority: "low" | "medium" | "high";
+  created_at: string;
+  updated_at: string;
+}
+
+// ========== 在线状态 ==========
+
+export interface UserPresence {
+  id: string;
+  user_id: string;
+  team_id: string;
+  user_name: string;
+  current_page: string;
+  last_seen_at: string;
+}

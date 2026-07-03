@@ -13,6 +13,7 @@ import { Toaster } from "sonner";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { SearchDialog } from "@/components/search-dialog";
 import { NotificationBell } from "@/components/notification-bell";
+import { PresenceIndicator } from "@/components/presence-indicator";
 
 const navLinks = [
   { href: "/dashboard", label: "概览", icon: "📊" },
@@ -22,6 +23,7 @@ const navLinks = [
   { href: "/leads", label: "线索管理", icon: "👥" },
   { href: "/sites", label: "独立站", icon: "🌐" },
   { href: "/analytics", label: "数据分析", icon: "📈" },
+  { href: "/tasks", label: "任务管理", icon: "✅" },
   { href: "/settings", label: "设置", icon: "⚙️" },
 ];
 
@@ -63,6 +65,7 @@ function TopBar({
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-zinc-200 bg-white/80 backdrop-blur-sm px-6">
       <Breadcrumb />
       <div className="flex items-center gap-1">
+      <PresenceIndicator user={user} />
       <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-zinc-100 transition-colors">

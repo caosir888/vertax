@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { templates, languages, type Template } from "@/lib/templates";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ContentComments } from "@/components/content-comments";
 
 interface Version {
   title?: string;
@@ -101,6 +108,10 @@ export default function ContentPage() {
   const [aiSuggestion, setAiSuggestion] = useState("");
 
   // 分析 & 翻译
+  // 评论
+  const [commentContentId, setCommentContentId] = useState("");
+  const [commentOpen, setCommentOpen] = useState(false);
+
   const [showAnalyze, setShowAnalyze] = useState(false);
   const [analyzeContent, setAnalyzeContent] = useState("");
   const [analyzeResult, setAnalyzeResult] = useState<{
@@ -500,6 +511,9 @@ export default function ContentPage() {
                           撤回
                         </button>
                       )}
+                      <button onClick={() => { setCommentContentId(item.id); setCommentOpen(true); }} className="text-xs text-blue-500 hover:text-blue-700">
+                        评论
+                      </button>
                       <button onClick={() => loadFromLibrary(item)} className="text-xs text-indigo-500 hover:text-indigo-700">
                         编辑
                       </button>
@@ -523,6 +537,16 @@ export default function ContentPage() {
               confirmLabel="删除"
               onConfirm={deleteItem}
             />
+
+            {/* 评论 Sheet */}
+            <Sheet open={commentOpen} onOpenChange={(open) => { if (!open) setCommentOpen(false); }}>
+              <SheetContent side="right" className="w-full sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>内容评论</SheetTitle>
+                </SheetHeader>
+                {commentContentId && <ContentComments contentId={commentContentId} />}
+              </SheetContent>
+            </Sheet>
           </div>
         )}
 
