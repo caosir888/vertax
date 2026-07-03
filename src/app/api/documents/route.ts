@@ -30,13 +30,48 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST /api/documents — 上传文档
+// POST /api/documents — 上传文档（服务端接收）或记录元数据（客户端直传后）
 export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
+  const supabase = getSupabase();
+  const contentType = request.headers.get("content-type") || "";
+
+  // 模式一：JSON 元数据（客户端已直传 Supabase Storage）
+  if (contentType.includes("application/json")) {
+    const body = await request.json();
+    const { name, file_url, file_size, file_type, knowledge_base_id } = body;
+
+    if (!name || !file_url) {
+      return NextResponse.json({ error: "缺少文件名或文件地址" }, { status: 400 });
+    }
+
+    const { data, error: dbError } = await supabase
+      .from("documents")
+      .insert({
+        team_id: user.team_id,
+        user_id: user.id,
+        name,
+        file_url,
+        file_size: file_size || 0,
+        file_type: file_type || "",
+        status: "ready",
+        knowledge_base_id: knowledge_base_id || null,
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      return NextResponse.json({ error: dbError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data }, { status: 201 });
+  }
+
+  // 模式二：FormData 服务端上传（小文件，向后兼容）
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -54,8 +89,8 @@ export async function POST(request: NextRequest) {
   // 文件类型校验
   const allowedTypes = [
     "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
-    "application/msword", // doc
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
     "text/plain",
     "text/markdown",
     "text/x-markdown",
@@ -64,31 +99,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "不支持的文件类型，请上传 PDF/Word/TXT/Markdown" }, { status: 400 });
   }
 
-  // 文件大小限制 10MB
   if (file.size > 10 * 1024 * 1024) {
     return NextResponse.json({ error: "文件过大，最大支持 10MB" }, { status: 400 });
   }
 
-  const supabase = getSupabase();
   const buffer = Buffer.from(await file.arrayBuffer());
   const filePath = `${user.team_id}/${Date.now()}_${file.name}`;
 
-  // 上传到 Supabase Storage
   const { error: uploadError } = await supabase.storage
     .from("documents")
-    .upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: false,
-    });
+    .upload(filePath, buffer, { contentType: file.type, upsert: false });
 
   if (uploadError) {
     return NextResponse.json({ error: "上传失败: " + uploadError.message }, { status: 500 });
   }
 
-  // 获取公开 URL
   const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath);
 
-  // 写入数据库
   const { data, error: dbError } = await supabase
     .from("documents")
     .insert({

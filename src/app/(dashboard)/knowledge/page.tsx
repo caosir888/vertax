@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 interface Document {
   id: string;
@@ -99,10 +103,36 @@ export default function KnowledgePage() {
     }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("knowledge_base_id", selectedKbId);
-      const res = await fetch("/api/documents", { method: "POST", body: formData });
+      // 客户端直传 Supabase Storage，绕过 Vercel 4.5MB 限制
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      const userRes = await fetch("/api/auth/me").then(r => r.json());
+      const teamId = userRes.data?.team_id;
+      if (!teamId) { toast.error("获取团队信息失败"); return; }
+      const filePath = `${teamId}/${Date.now()}_${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, file, { contentType: file.type, upsert: false });
+
+      if (uploadError) {
+        toast.error("上传失败: " + uploadError.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath);
+
+      // 通知后端创建数据库记录
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          file_url: urlData.publicUrl,
+          file_size: file.size,
+          file_type: file.type || file.name.split(".").pop() || "",
+          knowledge_base_id: selectedKbId,
+        }),
+      });
       const json = await res.json();
       if (json.error) {
         toast.error(json.error);
