@@ -108,7 +108,11 @@ export default function KnowledgePage() {
       const userRes = await fetch("/api/auth/me").then(r => r.json());
       const teamId = userRes.data?.team_id;
       if (!teamId) { toast.error("获取团队信息失败"); return; }
-      const filePath = `${teamId}/${Date.now()}_${file.name}`;
+
+      // 文件名转 ASCII 安全格式，避免 Supabase Storage "Invalid key" 错误
+      const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
+      const safeName = Date.now() + (ext ? "." + ext : "");
+      const filePath = `${teamId}/${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("documents")
