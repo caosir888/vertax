@@ -27,9 +27,9 @@ const navLinks = [
   { href: "/settings", label: "设置", icon: "⚙️" },
 ];
 
-function SidebarNav({ pathname }: { pathname: string }) {
+function SidebarNav({ pathname, user }: { pathname: string; user: { is_platform_admin?: boolean } | null }) {
   return (
-    <nav className="flex flex-col gap-1 p-4">
+    <nav className="flex flex-col gap-1 p-4 h-full">
       <h2 className="mb-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-400">
         VertaX
       </h2>
@@ -50,6 +50,17 @@ function SidebarNav({ pathname }: { pathname: string }) {
           </a>
         );
       })}
+      {user?.is_platform_admin && (
+        <div className="mt-auto pt-3 border-t border-zinc-100">
+          <a
+            href="/admin"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:text-black hover:bg-zinc-100 transition-all duration-200"
+          >
+            <span>⚙️</span>
+            运营后台
+          </a>
+        </div>
+      )}
     </nav>
   );
 }
@@ -99,7 +110,9 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; is_platform_admin?: boolean } | null>(null);
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [trialWarning, setTrialWarning] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -108,6 +121,19 @@ export default function DashboardLayout({
         if (json.data) setUser(json.data);
         else router.push("/login");
       });
+    fetch("/api/subscription")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.data) {
+          if (j.data.subscription_status === "trial" && j.data.trial_ends_at) {
+            const left = Math.ceil((new Date(j.data.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            if (left <= 0) setTrialExpired(true);
+            else if (left <= 3) setTrialWarning(true);
+          }
+          if (j.data.subscription_status === "expired") setTrialExpired(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   async function handleLogout() {
@@ -125,7 +151,7 @@ export default function DashboardLayout({
               ☰
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
-              <SidebarNav pathname={pathname} />
+              <SidebarNav pathname={pathname} user={user} />
             </SheetContent>
           </Sheet>
           <h1 className="text-sm font-bold text-black">VertaX</h1>
@@ -145,10 +171,22 @@ export default function DashboardLayout({
       {/* ========== 桌面端：侧边栏 + 顶栏 + 内容 ========== */}
       <div className="hidden sm:flex min-h-screen bg-zinc-50">
         <aside className="fixed left-0 top-0 flex h-screen w-56 flex-col border-r border-zinc-200 bg-white">
-          <SidebarNav pathname={pathname} />
+          <SidebarNav pathname={pathname} user={user} />
         </aside>
         <div className="ml-56 flex flex-1 flex-col">
           <TopBar user={user} onLogout={handleLogout} />
+          {trialExpired && (
+            <div className="bg-red-500 text-white text-center text-sm py-2 px-4">
+              试用已到期，部分功能受限。
+              <a href="/settings" className="underline ml-2 font-medium">立即升级</a>
+            </div>
+          )}
+          {trialWarning && !trialExpired && (
+            <div className="bg-yellow-400 text-yellow-900 text-center text-sm py-2 px-4">
+              试用即将到期，请尽快升级以免影响使用。
+              <a href="/settings" className="underline ml-2 font-medium">立即升级</a>
+            </div>
+          )}
           <main key={pathname} className="flex-1 animate-page-enter">{children}</main>
         </div>
       </div>

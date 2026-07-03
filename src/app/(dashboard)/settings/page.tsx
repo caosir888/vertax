@@ -34,7 +34,7 @@ interface ApiKey {
   created_at: string;
 }
 
-type Tab = "info" | "members" | "apikeys" | "activity";
+type Tab = "info" | "members" | "subscription" | "apikeys" | "activity";
 
 interface ActivityLog {
   id: string;
@@ -62,6 +62,10 @@ const industryOptions = [
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("info");
   const [team, setTeam] = useState<Team | null>(null);
+  const [sub, setSub] = useState<{
+    plan: string; subscription_status: string; trial_ends_at: string | null;
+    limits: { maxMembers: number; maxSites: number; maxContent: number; maxAIGenerations: number };
+  } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
@@ -72,17 +76,19 @@ export default function SettingsPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [teamRes, membersRes, keysRes, logRes] = await Promise.all([
+      const [teamRes, membersRes, keysRes, logRes, subRes] = await Promise.all([
         fetch("/api/team"),
         fetch("/api/team/members"),
         fetch("/api/api-keys"),
         fetch("/api/activity-logs"),
+        fetch("/api/subscription"),
       ]);
-      const [t, m, k, l] = await Promise.all([teamRes.json(), membersRes.json(), keysRes.json(), logRes.json()]);
+      const [t, m, k, l, s] = await Promise.all([teamRes.json(), membersRes.json(), keysRes.json(), logRes.json(), subRes.json()]);
       if (t.data) setTeam(t.data);
       if (m.data) setMembers(m.data);
       if (k.data) setApiKeys(k.data);
       if (l.data) setActivityLogs(l.data);
+      if (s.data) setSub(s.data);
     } catch {
       toast.error("设置信息加载失败");
     } finally {
@@ -112,6 +118,7 @@ export default function SettingsPage() {
           {([
             ["info", "团队信息"],
             ["members", "成员管理"],
+            ["subscription", "订阅"],
             ["apikeys", "API 密钥"],
             ["activity", "操作日志"],
           ] as const).map(([key, label]) => (
@@ -130,6 +137,9 @@ export default function SettingsPage() {
         <div className="mt-6">
           {tab === "info" && <TeamInfoTab team={team} onUpdate={loadData} />}
           {tab === "members" && <MembersTab members={members} onUpdate={loadData} />}
+          {tab === "subscription" && sub && (
+            <SubscriptionTab sub={sub} onUpdate={loadData} />
+          )}
           {tab === "apikeys" && <ApiKeysTab apiKeys={apiKeys} onUpdate={loadData} />}
           {tab === "activity" && (
             <div className="rounded-xl border border-zinc-200 bg-white">
@@ -461,6 +471,106 @@ function ApiKeysTab({ apiKeys, onUpdate }: { apiKeys: ApiKey[]; onUpdate: () => 
         confirmLabel="删除"
         onConfirm={deleteKey}
       />
+    </div>
+  );
+}
+
+// ========== 订阅标签 ==========
+
+const planNames: Record<string, string> = { free: "Free", pro: "Pro", enterprise: "Enterprise" };
+const statusNames: Record<string, string> = { trial: "试用中", active: "已激活", cancelled: "已取消", expired: "已过期" };
+const statusColors: Record<string, string> = { trial: "bg-blue-100 text-blue-700", active: "bg-green-100 text-green-700", cancelled: "bg-yellow-100 text-yellow-700", expired: "bg-red-100 text-red-700" };
+
+function SubscriptionTab({ sub, onUpdate }: { sub: { plan: string; subscription_status: string; trial_ends_at: string | null; limits: { maxMembers: number; maxSites: number; maxContent: number; maxAIGenerations: number } }; onUpdate: () => void }) {
+  const [upgrading, setUpgrading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const trialLeft = sub.trial_ends_at ? Math.max(0, Math.ceil((new Date(sub.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+
+  async function handleUpgrade(plan: string) {
+    const planLabel = plan === "pro" ? "Pro ($29/月)" : "Enterprise ($99/月)";
+    if (!confirm(`确认升级到 ${planLabel}？\n（模拟支付，不会产生真实费用）`)) return;
+    setUpgrading(true);
+    try {
+      const res = await fetch("/api/subscription/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const json = await res.json();
+      if (json.error) { alert(json.error); return; }
+      alert(`升级成功！交易ID: ${json.data.transaction_id}`);
+      onUpdate();
+    } catch { alert("升级失败"); }
+    finally { setUpgrading(false); }
+  }
+
+  async function handleCancel() {
+    if (!confirm("确定取消订阅？取消后现有功能仍可用到当前周期结束。")) return;
+    setCancelling(true);
+    try {
+      const res = await fetch("/api/subscription/cancel", { method: "POST" });
+      const json = await res.json();
+      if (json.error) { alert(json.error); return; }
+      alert("已取消订阅");
+      onUpdate();
+    } catch { alert("取消失败"); }
+    finally { setCancelling(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 当前方案 */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-black">当前方案</h3>
+          <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[sub.subscription_status] || "bg-zinc-100 text-zinc-500"}`}>
+            {statusNames[sub.subscription_status] || sub.subscription_status}
+          </span>
+        </div>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-2xl font-bold text-black">{planNames[sub.plan]}</span>
+        </div>
+        {sub.subscription_status === "trial" && trialLeft > 0 && (
+          <p className="text-sm text-blue-600">试用剩余 {trialLeft} 天</p>
+        )}
+        {sub.subscription_status === "trial" && trialLeft === 0 && (
+          <p className="text-sm text-red-500">试用已到期，请升级方案</p>
+        )}
+      </div>
+
+      {/* 使用限制 */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-6">
+        <h3 className="text-sm font-bold text-black mb-3">方案限制</h3>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="flex justify-between p-2 bg-zinc-50 rounded"><span>成员数</span><span className="font-medium">{sub.limits.maxMembers}</span></div>
+          <div className="flex justify-between p-2 bg-zinc-50 rounded"><span>独立站</span><span className="font-medium">{sub.limits.maxSites}</span></div>
+          <div className="flex justify-between p-2 bg-zinc-50 rounded"><span>内容数</span><span className="font-medium">{sub.limits.maxContent}</span></div>
+          <div className="flex justify-between p-2 bg-zinc-50 rounded"><span>AI生成/天</span><span className="font-medium">{sub.limits.maxAIGenerations}</span></div>
+        </div>
+      </div>
+
+      {/* 操作 */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-6">
+        <h3 className="text-sm font-bold text-black mb-3">方案操作</h3>
+        <div className="flex flex-wrap gap-2">
+          {sub.plan !== "pro" && (
+            <button onClick={() => handleUpgrade("pro")} disabled={upgrading} className="rounded-lg bg-black text-white px-4 py-2 text-sm hover:bg-zinc-800 disabled:opacity-50">
+              {upgrading ? "处理中..." : "升级到 Pro ($29/月)"}
+            </button>
+          )}
+          {sub.plan !== "enterprise" && (
+            <button onClick={() => handleUpgrade("enterprise")} disabled={upgrading} className="rounded-lg bg-zinc-800 text-white px-4 py-2 text-sm hover:bg-zinc-700 disabled:opacity-50">
+              {upgrading ? "处理中..." : "升级到 Enterprise ($99/月)"}
+            </button>
+          )}
+          {sub.subscription_status === "active" && (
+            <button onClick={handleCancel} disabled={cancelling} className="rounded-lg border border-red-200 text-red-500 px-4 py-2 text-sm hover:bg-red-50 disabled:opacity-50">
+              {cancelling ? "处理中..." : "取消订阅"}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

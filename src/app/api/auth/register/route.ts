@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
+import { TRIAL_DAYS } from "@/lib/plans";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
@@ -44,10 +45,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 自动创建默认团队
+  // 自动创建默认团队（14 天试用期）
+  const trialEnd = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const { data: team, error: teamError } = await supabase
     .from("tenants")
-    .insert({ name: name + "的团队" })
+    .insert({ name: name + "的团队", plan: "free", subscription_status: "trial", trial_ends_at: trialEnd })
     .select("id")
     .single();
 

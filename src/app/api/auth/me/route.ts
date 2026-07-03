@@ -10,6 +10,7 @@ export async function GET() {
 
   // 查询用户角色
   let role = "viewer";
+  let is_platform_admin = false;
   if (user.team_id) {
     const { data } = await getSupabase()
       .from("team_members")
@@ -20,5 +21,13 @@ export async function GET() {
     if (data?.role) role = data.role;
   }
 
-  return NextResponse.json({ data: { ...user, role } });
+  // 查询平台管理员
+  const { data: userData } = await getSupabase()
+    .from("users")
+    .select("is_platform_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (userData?.is_platform_admin) is_platform_admin = true;
+
+  return NextResponse.json({ data: { ...user, role, is_platform_admin } });
 }

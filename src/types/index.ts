@@ -125,3 +125,27 @@ export interface UserPresence {
   current_page: string;
   last_seen_at: string;
 }
+
+// ========== 订阅方案 ==========
+
+export interface PlanInfo {
+  id: "free" | "pro" | "enterprise";
+  name: string;
+  price: number;
+  priceLabel: string;
+  features: string[];
+  limits: {
+    maxMembers: number;
+    maxSites: number;
+    maxContent: number;
+    maxAIGenerations: number;
+  };
+}
+
+export interface SubscriptionInfo {
+  plan: string;
+  subscription_status: string;
+  trial_ends_at: string | null;
+  subscription_ends_at: string | null;
+  limits: PlanInfo["limits"];
+}
