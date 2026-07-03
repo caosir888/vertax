@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     let chunks: { id: string; content: string; chunk_index: number; document_id: string; similarity: number }[] = [];
 
     const { data: rpcData, error: rpcError } = await getSupabase().rpc("search_chunks", {
-      query_embedding: queryVector,
+      query_embedding: JSON.stringify(queryVector), // pgvector 需要字符串格式
       match_threshold: 0.5,
       match_count: topK,
       filter_team_id: user.team_id,
@@ -79,13 +79,24 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: rawError.message }, { status: 500 });
       }
 
+      // pgvector 返回的 embedding 可能是字符串 "[0.1,0.2,...]" 而非数组
+      function parseEmbedding(emb: unknown): number[] {
+        if (Array.isArray(emb)) return emb;
+        if (typeof emb === "string") {
+          try { return JSON.parse(emb); } catch { return []; }
+        }
+        return [];
+      }
+
       chunks = (rawData || [])
-        .map((chunk: { id: string; content: string; chunk_index: number; document_id: string; embedding: number[] }) => ({
-          ...chunk,
-          similarity: chunk.embedding && Array.isArray(chunk.embedding)
-            ? cosineSimilarity(queryVector, chunk.embedding)
-            : 0,
-        }))
+        .map((chunk: { id: string; content: string; chunk_index: number; document_id: string; embedding: unknown }) => {
+          const emb = parseEmbedding(chunk.embedding);
+          return {
+            ...chunk,
+            embedding: emb,
+            similarity: emb.length > 0 ? cosineSimilarity(queryVector, emb) : 0,
+          };
+        })
         .filter((r: { similarity: number }) => r.similarity > 0.5)
         .sort((a: { similarity: number }, b: { similarity: number }) => b.similarity - a.similarity)
         .slice(0, topK);
