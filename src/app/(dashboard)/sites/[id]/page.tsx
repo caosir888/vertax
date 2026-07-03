@@ -370,7 +370,7 @@ export default function SiteDetailPage() {
               </Button>
             </div>
             {pages.map((page, i) => (
-              <div key={page.slug} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+              <div key={page.slug || `page-${i}`} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 bg-zinc-50 border-b border-zinc-100">
                   <div className="flex items-center gap-2">
                     <div className="flex flex-col gap-0.5">

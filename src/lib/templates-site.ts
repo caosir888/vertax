@@ -107,7 +107,10 @@ export function parseSiteContent(text: string): { title: string; slug: string; c
     const slug = title
       .toLowerCase()
       .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+      .replace(/[^a-z0-9一-鿿-]/g, "")
+      .replace(/--+/g, "-")
+      .replace(/^-|-$/g, "")
+      || `page-${i}`;
 
     pages.push({ title, slug, content });
   }

@@ -182,8 +182,8 @@ export default function SitesPage() {
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1 mb-3">
-                        {pages.map((p) => (
-                          <span key={p.slug} className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
+                        {pages.map((p, i) => (
+                          <span key={p.slug || `page-${i}`} className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
                             {p.title}
                           </span>
                         ))}
