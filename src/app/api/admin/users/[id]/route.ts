@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "@/lib/activity-logger";
 
 export async function PATCH(
   request: NextRequest,
@@ -26,29 +25,18 @@ export async function PATCH(
   const body = await request.json();
   const updates: Record<string, unknown> = {};
 
-  if (body.plan !== undefined) updates.plan = body.plan;
-  if (body.subscription_status !== undefined) updates.subscription_status = body.subscription_status;
-  if (body.is_active !== undefined) updates.is_active = body.is_active;
+  if (body.is_disabled !== undefined) updates.is_disabled = body.is_disabled;
 
   const { data, error } = await getSupabase()
-    .from("tenants")
+    .from("users")
     .update(updates)
     .eq("id", id)
-    .select("id, name, plan, subscription_status, is_active")
+    .select("id, name, email, is_disabled")
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  logActivity({
-    team_id: id,
-    user_id: user.id,
-    user_name: user.name,
-    action: "管理员修改租户",
-    target: data.name,
-    details: `方案: ${data.plan}, 状态: ${data.subscription_status}`,
-  });
 
   return NextResponse.json({ data });
 }
