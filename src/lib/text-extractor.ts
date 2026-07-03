@@ -11,9 +11,10 @@ export async function extractText(
   // PDF — pdfreader 纯文本提取，无需 DOM/canvas
   if (fileType === "application/pdf") {
     const { PdfReader } = await import("pdfreader");
+    const uint8 = new Uint8Array(buffer);
     const text = await new Promise<string>((resolve, reject) => {
       const lines: string[] = [];
-      new PdfReader().parseBuffer(buffer, (err, item) => {
+      new PdfReader().parseBuffer(uint8, (err, item) => {
         if (err) { reject(err); return; }
         if (!item) { resolve(lines.join("\n")); return; }
         if (item.text) lines.push(item.text.trim());
