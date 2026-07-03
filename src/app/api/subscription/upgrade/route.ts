@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
+import { getUserRole } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity-logger";
 import { sendNotification } from "@/lib/notifications";
 
@@ -9,6 +10,12 @@ export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
+  // 只有 owner 可以升级方案
+  const role = await getUserRole(user.id, user.team_id!);
+  if (role !== "owner") {
+    return NextResponse.json({ error: "只有团队拥有者可以升级方案" }, { status: 403 });
   }
 
   const { plan: targetPlan } = await request.json();
@@ -37,7 +44,7 @@ export async function POST(request: NextRequest) {
     .eq("id", user.team_id);
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return NextResponse.json({ error: "服务器内部错误" }, { status: 500 });
   }
 
   // 记录订阅

@@ -26,7 +26,13 @@ export async function GET(
     return NextResponse.json({ error: "Webhook 不存在" }, { status: 404 });
   }
 
-  return NextResponse.json({ data });
+  // 脱敏 secret
+  const masked = {
+    ...data,
+    secret: data.secret ? data.secret.substring(0, 8) + "***" : "",
+  };
+
+  return NextResponse.json({ data: masked });
 }
 
 // PATCH /api/webhooks/[id] — 更新 webhook

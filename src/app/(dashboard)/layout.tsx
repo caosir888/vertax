@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Link from "next/link";
 import { Toaster } from "sonner";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { SearchDialog } from "@/components/search-dialog";
@@ -38,7 +39,7 @@ function SidebarNav({ pathname, user }: { pathname: string; user: { is_platform_
       {navLinks.map((link) => {
         const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
         return (
-          <a
+          <Link
             key={link.href}
             href={link.href}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
@@ -49,18 +50,18 @@ function SidebarNav({ pathname, user }: { pathname: string; user: { is_platform_
           >
             <span>{link.icon}</span>
             {link.label}
-          </a>
+          </Link>
         );
       })}
       {user?.is_platform_admin && (
         <div className="mt-auto pt-3 border-t border-zinc-100">
-          <a
+          <Link
             href="/admin"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:text-black hover:bg-zinc-100 transition-all duration-200"
           >
             <span>⚙️</span>
             运营后台
-          </a>
+          </Link>
         </div>
       )}
     </nav>
@@ -122,7 +123,8 @@ export default function DashboardLayout({
       .then((json) => {
         if (json.data) setUser(json.data);
         else router.push("/login");
-      });
+      })
+      .catch(() => { router.push("/login"); });
     fetch("/api/subscription")
       .then((r) => r.json())
       .then((j) => {

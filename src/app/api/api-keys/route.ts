@@ -21,10 +21,16 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "服务器内部错误" }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  // 脱敏：只显示 key 前 8 位
+  const masked = (data || []).map((k: { key: string; [k: string]: unknown }) => ({
+    ...k,
+    key: k.key ? k.key.substring(0, 8) + "***" : "",
+  }));
+
+  return NextResponse.json({ data: masked });
 }
 
 // POST /api/api-keys — 创建新的 API Key
