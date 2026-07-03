@@ -8,11 +8,17 @@ export async function extractText(
   fileType: string,
   fileName: string
 ): Promise<string> {
-  // PDF — 使用 unpdf（纯 Node.js，不依赖 DOM）
+  // PDF — pdfreader 纯文本提取，无需 DOM/canvas
   if (fileType === "application/pdf") {
-    const { extractText: extractPdfText } = await import("unpdf");
-    const result = await extractPdfText(buffer);
-    const text = result?.text?.join("\n") || "";
+    const { PdfReader } = await import("pdfreader");
+    const text = await new Promise<string>((resolve, reject) => {
+      const lines: string[] = [];
+      new PdfReader().parseBuffer(buffer, (err, item) => {
+        if (err) { reject(err); return; }
+        if (!item) { resolve(lines.join("\n")); return; }
+        if (item.text) lines.push(item.text.trim());
+      });
+    });
     return text;
   }
 
