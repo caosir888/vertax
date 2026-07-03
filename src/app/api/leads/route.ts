@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-logger";
 import { sendNotification } from "@/lib/notifications";
+import { fireWebhookAsync } from "@/lib/webhook";
 
 // GET /api/leads — 获取线索列表（支持筛选和搜索）
 export async function GET(request: NextRequest) {
@@ -71,6 +72,8 @@ export async function POST(request: NextRequest) {
   logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "创建线索", target: data.name });
 
   sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `新线索「${data.name}」已创建`, message: `来源：${source || "手动录入"}` });
+
+  fireWebhookAsync(user.team_id!, "lead.created", { id: data.id, name: data.name, company, email, status, source });
 
   return NextResponse.json({ data }, { status: 201 });
 }

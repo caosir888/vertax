@@ -69,5 +69,9 @@ export async function POST(request: NextRequest) {
   // 注册成功 → 自动登录
   await setSessionCookie({ id: user.id, name: user.name, email: user.email, team_id: team.id });
 
+  // 异步发送欢迎邮件（不影响响应速度）
+  const { sendWelcomeEmail } = await import("@/lib/email");
+  sendWelcomeEmail(email, name);
+
   return NextResponse.json({ data: { ...user, team_id: team.id } }, { status: 201 });
 }

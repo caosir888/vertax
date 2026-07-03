@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-logger";
 import { sendNotification } from "@/lib/notifications";
+import { fireWebhookAsync } from "@/lib/webhook";
 
 // POST /api/content/[id]/publish — 记录一次发布
 export async function POST(
@@ -47,6 +48,8 @@ export async function POST(
   logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "发布内容", target: id, details: platform });
 
   sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `一条内容已发布到 ${platform}`, message: notes || `${user.name} 发布了一条内容` });
+
+  fireWebhookAsync(user.team_id!, "content.published", { content_id: id, platform, url, notes });
 
   return NextResponse.json({ data });
 }

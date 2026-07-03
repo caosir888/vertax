@@ -25,6 +25,7 @@ const navLinks = [
   { href: "/analytics", label: "数据分析", icon: "📈" },
   { href: "/tasks", label: "任务管理", icon: "✅" },
   { href: "/settings", label: "设置", icon: "⚙️" },
+  { href: "/api-docs", label: "API 文档", icon: "🔌" },
 ];
 
 function SidebarNav({ pathname, user }: { pathname: string; user: { is_platform_admin?: boolean } | null }) {
