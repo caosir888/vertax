@@ -88,8 +88,21 @@ export default function LeadsPage() {
   const [delOpen, setDelOpen] = useState(false);
   const [delId, setDelId] = useState("");
 
+  // AI 画像
+  const [profileMap, setProfileMap] = useState<Record<string, number>>({});
+  const [profilingId, setProfilingId] = useState("");
+  const [profileResult, setProfileResult] = useState<{
+    score: number;
+    company_summary: string;
+    decision_maker_analysis: string;
+    pain_point_match: string;
+    recommended_approach: string;
+    risk_factors: string;
+  } | null>(null);
+
   useEffect(() => {
     loadLeads();
+    loadScores();
   }, []);
 
   async function loadLeads() {
@@ -107,14 +120,64 @@ export default function LeadsPage() {
     }
   }
 
+  async function loadScores() {
+    try {
+      const res = await fetch("/api/leads?limit=200");
+      const json = await res.json();
+      if (json.data) {
+        const scores: Record<string, number> = {};
+        await Promise.all(
+          (json.data as Lead[]).map(async (lead) => {
+            try {
+              const r = await fetch(`/api/leads/${lead.id}/profile`);
+              const j = await r.json();
+              if (j.data?.score) scores[lead.id] = j.data.score;
+            } catch { /* skip */ }
+          })
+        );
+        setProfileMap(scores);
+      }
+    } catch { /* skip */ }
+  }
+
+  async function generateProfile(leadId: string) {
+    setProfilingId(leadId);
+    setProfileResult(null);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/profile`, { method: "POST" });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
+      setProfileResult(json.data);
+      setProfileMap((prev) => ({ ...prev, [leadId]: json.data.score }));
+      toast.success("画像生成完成");
+    } catch {
+      toast.error("画像生成失败");
+    } finally {
+      setProfilingId("");
+    }
+  }
+
+  function getScoreBadge(score: number) {
+    if (score >= 80) return { label: "高匹配", color: "bg-green-100 text-green-700" };
+    if (score >= 50) return { label: "中等", color: "bg-yellow-100 text-yellow-700" };
+    return { label: "低匹配", color: "bg-zinc-100 text-zinc-500" };
+  }
+
   function openCreate() {
     setEditLead(null);
+    setProfileResult(null);
     setForm({ name: "", company: "", email: "", phone: "", source: "", notes: "" });
     setDialogOpen(true);
   }
 
   function openEdit(lead: Lead) {
     setEditLead(lead);
+    setProfileResult(null);
+    // 加载已有画像
+    fetch(`/api/leads/${lead.id}/profile`)
+      .then((r) => r.json())
+      .then((j) => { if (j.data) setProfileResult(j.data); })
+      .catch(() => {});
     setForm({
       name: lead.name,
       company: lead.company,
@@ -296,9 +359,16 @@ export default function LeadsPage() {
                         className="rounded-xl bg-white border border-zinc-200 p-3 shadow-sm hover:border-zinc-300 transition-colors cursor-pointer group"
                         onClick={() => openEdit(lead)}
                       >
-                        <p className="text-sm font-medium text-black truncate">
-                          {lead.name}
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-black truncate flex-1">
+                            {lead.name}
+                          </p>
+                          {profileMap[lead.id] && (
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${getScoreBadge(profileMap[lead.id]).color}`}>
+                              {profileMap[lead.id]}
+                            </span>
+                          )}
+                        </div>
                         {lead.company && (
                           <p className="text-xs text-zinc-500 truncate mt-0.5">
                             {lead.company}
@@ -452,6 +522,68 @@ export default function LeadsPage() {
                 />
               </div>
             </div>
+
+            {/* AI 客户画像 */}
+            {editLead && (
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-zinc-500 flex items-center gap-1">
+                    🤖 AI 客户画像
+                  </h4>
+                  <button
+                    onClick={() => generateProfile(editLead.id)}
+                    disabled={profilingId === editLead.id}
+                    className="text-xs rounded-lg bg-black text-white px-3 py-1 hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+                  >
+                    {profilingId === editLead.id ? "分析中..." : profileResult ? "重新分析" : "AI 分析"}
+                  </button>
+                </div>
+
+                {profileResult ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400">匹配度</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getScoreBadge(profileResult.score).color}`}>
+                        {profileResult.score}/100 {getScoreBadge(profileResult.score).label}
+                      </span>
+                    </div>
+                    {profileResult.company_summary && (
+                      <p className="text-xs text-zinc-600">
+                        <span className="font-medium text-zinc-500">公司分析：</span>
+                        {profileResult.company_summary}
+                      </p>
+                    )}
+                    {profileResult.decision_maker_analysis && (
+                      <p className="text-xs text-zinc-600">
+                        <span className="font-medium text-zinc-500">决策人分析：</span>
+                        {profileResult.decision_maker_analysis}
+                      </p>
+                    )}
+                    {profileResult.pain_point_match && (
+                      <p className="text-xs text-zinc-600">
+                        <span className="font-medium text-zinc-500">痛点匹配：</span>
+                        {profileResult.pain_point_match}
+                      </p>
+                    )}
+                    {profileResult.recommended_approach && (
+                      <p className="text-xs text-zinc-600">
+                        <span className="font-medium text-zinc-500">跟进建议：</span>
+                        {profileResult.recommended_approach}
+                      </p>
+                    )}
+                    {profileResult.risk_factors && (
+                      <p className="text-xs text-zinc-600">
+                        <span className="font-medium text-zinc-500">风险提示：</span>
+                        {profileResult.risk_factors}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-400">点击「AI 分析」生成客户画像，包括 ICP 匹配评分、公司分析、跟进建议等。</p>
+                )}
+              </div>
+            )}
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
                 取消
