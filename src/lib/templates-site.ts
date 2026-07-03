@@ -24,6 +24,7 @@ export interface SiteSettings {
   ogImage: string;
   enableChat?: boolean;
   chatWelcomeMessage?: string;
+  customDomain?: string;
 }
 
 export const siteTemplates: SiteTemplate[] = [
@@ -53,8 +54,12 @@ export const siteTemplates: SiteTemplate[] = [
   },
 ];
 
-export function buildSitePrompt(template: SiteTemplate, settings: SiteSettings) {
+export function buildSitePrompt(template: SiteTemplate, settings: SiteSettings, knowledgeContext?: string) {
   const pageList = template.pages.map((p, i) => `${i + 1}. ${p}`).join("\n");
+
+  const knowledgeSection = knowledgeContext
+    ? `\n**知识库参考资料（来自团队上传的文档）：**\n${knowledgeContext.slice(0, 3000)}\n\n请尽可能参考以上资料中的产品名称、技术参数、公司背景等真实信息来撰写文案。\n`
+    : "";
 
   return `你是一个专业的 B2B 网站内容策划师。请为以下企业生成独立站各页面的完整文案。
 
@@ -70,6 +75,7 @@ export function buildSitePrompt(template: SiteTemplate, settings: SiteSettings) 
 **需要生成的页面：**
 ${pageList}
 
+${knowledgeSection}
 **要求：**
 1. 每个页面生成150-300字的专业英文文案（用于国际B2B官网）
 2. 文案要有营销感，突出企业优势
@@ -133,6 +139,18 @@ export function renderSiteHTML(
   const pageTitle = settings.seoTitle || `${settings.companyName} - ${settings.tagline}`;
   const metaDesc = settings.seoDescription || `${settings.companyName} — ${settings.tagline}. ${settings.industry ? `${settings.industry}行业的专业B2B解决方案提供商。` : ""}`;
   const ogImage = settings.ogImage || "";
+  const canonicalUrl = settings.customDomain ? `https://${settings.customDomain}` : (siteId ? `/api/sites/${siteId}/preview` : "");
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: settings.companyName,
+    description: metaDesc,
+    url: canonicalUrl,
+    ...(settings.contactEmail ? { email: settings.contactEmail } : {}),
+    ...(settings.contactPhone ? { telephone: settings.contactPhone } : {}),
+    ...(settings.contactAddress ? { address: { "@type": "PostalAddress", streetAddress: settings.contactAddress } } : {}),
+  };
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -148,6 +166,7 @@ export function renderSiteHTML(
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${pageTitle}">
   <meta name="twitter:description" content="${metaDesc}">
+  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   <style>
     :root { --primary: ${settings.primaryColor}; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -263,6 +282,13 @@ export function renderSiteHTML(
       <p>${settings.contactEmail} | ${settings.contactPhone}</p>
     </div>
   </footer>
+  ${siteId ? `<script>
+  (function() {
+    try {
+      fetch("/api/sites/${siteId}/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ page: location.hash?.replace("#", "") || "home" }) });
+    } catch(e) {}
+  })();
+  </script>` : ""}
   ${
     settings.enableChat && siteId
       ? chatWidgetHTML(siteId, settings.chatWelcomeMessage || "你好！有什么可以帮助你的？")

@@ -109,6 +109,50 @@ export default function SiteDetailPage() {
     }
   }
 
+  async function addPage() {
+    if (!site) return;
+    const pages = getPages();
+    const newPage = { title: "新页面", slug: `page-${Date.now()}`, content: "## 新页面\n\n在此编辑内容..." };
+    const updated = [...pages, newPage];
+    try {
+      const res = await fetch(`/api/sites/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pages: updated }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setSite(json.data);
+        toast.success("页面已添加");
+      }
+    } catch {
+      toast.error("添加失败");
+    }
+  }
+
+  async function deletePage(index: number) {
+    if (!site) return;
+    const pages = getPages();
+    if (pages.length <= 1) { toast.error("至少保留一个页面"); return; }
+    if (!confirm(`确定要删除「${pages[index].title}」页面吗？`)) return;
+    const updated = pages.filter((_, i) => i !== index);
+    try {
+      const res = await fetch(`/api/sites/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pages: updated }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setSite(json.data);
+        if (editingPage === index) setEditingPage(null);
+        toast.success("页面已删除");
+      }
+    } catch {
+      toast.error("删除失败");
+    }
+  }
+
   async function movePage(index: number, direction: -1 | 1) {
     if (!site) return;
     const pages = getPages();
@@ -319,6 +363,12 @@ export default function SiteDetailPage() {
         {/* 编辑视图 */}
         {tab === "edit" && (
           <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-zinc-500">{pages.length} 个页面</p>
+              <Button onClick={addPage} variant="outline" className="rounded-xl text-sm">
+                + 新增页面
+              </Button>
+            </div>
             {pages.map((page, i) => (
               <div key={page.slug} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 bg-zinc-50 border-b border-zinc-100">
@@ -345,12 +395,20 @@ export default function SiteDetailPage() {
                     <span className="text-xs text-zinc-400">/{page.slug}</span>
                   </div>
                   {editingPage !== i && (
-                    <button
-                      onClick={() => startEdit(i)}
-                      className="text-xs text-indigo-500 hover:text-indigo-700"
-                    >
-                      编辑
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => startEdit(i)}
+                        className="text-xs text-indigo-500 hover:text-indigo-700"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        onClick={() => deletePage(i)}
+                        className="text-xs text-red-400 hover:text-red-600"
+                      >
+                        删除
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="p-5">

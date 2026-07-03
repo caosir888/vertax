@@ -32,7 +32,32 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const prompt = buildSitePrompt(template, finalSettings);
+    // 从知识库搜索相关产品信息
+    let knowledgeContext = "";
+    try {
+      const { data: docs } = await getSupabase()
+        .from("documents")
+        .select("id, name")
+        .eq("team_id", user.team_id)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (docs?.length) {
+        const { data: chunks } = await getSupabase()
+          .from("document_chunks")
+          .select("content")
+          .in("document_id", docs.map((d: { id: string }) => d.id))
+          .limit(10);
+
+        if (chunks?.length) {
+          knowledgeContext = chunks.map((c: { content: string }) => c.content).join("\n---\n");
+        }
+      }
+    } catch {
+      // 知识库搜索失败不影响生成
+    }
+
+    const prompt = buildSitePrompt(template, finalSettings, knowledgeContext);
     const result = await chat([{ role: "user", content: prompt }]);
 
     const pages = parseSiteContent(result);
