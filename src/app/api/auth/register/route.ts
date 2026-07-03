@@ -75,11 +75,14 @@ export async function POST(request: NextRequest) {
   }
 
   // 注册成功 → 自动登录
-  await setSessionCookie({ id: user.id, name: user.name, email: user.email, team_id: team.id });
+  try {
+    await setSessionCookie({ id: user.id, name: user.name, email: user.email, team_id: team.id });
+  } catch {
+    // cookie 设置失败不影响注册结果（用户可手动登录）
+  }
 
   // 异步发送欢迎邮件（不影响响应速度）
-  const { sendWelcomeEmail } = await import("@/lib/email");
-  sendWelcomeEmail(email, name);
+  import("@/lib/email").then((m) => m.sendWelcomeEmail(email, name)).catch(() => {});
 
   return NextResponse.json({ data: { ...user, team_id: team.id } }, { status: 201 });
 }
