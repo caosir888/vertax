@@ -8,12 +8,12 @@ export async function extractText(
   fileType: string,
   fileName: string
 ): Promise<string> {
-  // PDF — 运行时动态 require，避免构建时加载浏览器依赖
+  // PDF — 使用 unpdf（纯 Node.js，不依赖 DOM）
   if (fileType === "application/pdf") {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse");
-    const data: { text: string } = await pdfParse(buffer);
-    return data.text;
+    const { extractText: extractPdfText } = await import("unpdf");
+    const result = await extractPdfText(buffer);
+    const text = result?.text?.join("\n") || "";
+    return text;
   }
 
   // Word (.docx / .doc)
