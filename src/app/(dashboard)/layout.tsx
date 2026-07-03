@@ -17,6 +17,7 @@ import { PresenceIndicator } from "@/components/presence-indicator";
 
 const navLinks = [
   { href: "/dashboard", label: "概览", icon: "📊" },
+  { href: "/guide", label: "入门指南", icon: "📖" },
   { href: "/memos", label: "备忘录", icon: "📝" },
   { href: "/knowledge", label: "知识库", icon: "📚" },
   { href: "/content", label: "内容工坊", icon: "✍️" },
