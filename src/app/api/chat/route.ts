@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
           similarity: emb.length > 0 ? cosineSimilarity(queryVector, emb) : 0,
         };
       })
-      .filter((r) => r.similarity > 0.5)
+      .filter((r) => r.similarity > 0.2)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, topK);
 
