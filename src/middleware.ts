@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-secret-change-me-in-production-123456"
-);
+function getSecret(): Uint8Array {
+  const key = process.env.JWT_SECRET;
+  if (!key) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET 环境变量未设置，生产环境必须配置");
+    }
+    return new TextEncoder().encode("dev-secret-do-not-use-in-production");
+  }
+  return new TextEncoder().encode(key);
+}
 
 // 需要登录才能访问的路由（管理后台所有模块）
 const protectedPaths = [
@@ -33,7 +40,7 @@ export async function middleware(request: NextRequest) {
 
   // 验证 token 是否有效
   try {
-    await jwtVerify(token, secret);
+    await jwtVerify(token, getSecret());
     return NextResponse.next();
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));

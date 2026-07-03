@@ -17,6 +17,18 @@ export async function GET(
 
   const { id } = await params;
 
+  // 验证站点属于当前用户团队
+  const { data: siteCheck } = await getSupabase()
+    .from("sites")
+    .select("id")
+    .eq("id", id)
+    .eq("team_id", user.team_id)
+    .maybeSingle();
+
+  if (!siteCheck) {
+    return NextResponse.json({ error: "站点不存在" }, { status: 404 });
+  }
+
   const { data, error } = await getSupabase()
     .from("site_inquiries")
     .select("*")

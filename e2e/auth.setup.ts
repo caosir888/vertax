@@ -1,7 +1,7 @@
 import { SignJWT } from "jose";
 
 const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-secret-change-me-in-production-123456"
+  process.env.JWT_SECRET || "dev-secret-do-not-use-in-production"
 );
 
 // 为 E2E 测试生成有/无 team 的 JWT token
