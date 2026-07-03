@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         data: {
           answer: "知识库中暂无相关内容，请先上传文档并完成向量化。",
           sources: [],
+          debug: { team_id: user.team_id, docCount: teamDocs?.length || 0 },
         },
       });
     }
@@ -98,7 +99,21 @@ export async function POST(request: NextRequest) {
     let sources: { document_id: string; document_name: string; chunk_index: number; content: string; similarity: number }[] = [];
 
     if (chunks.length === 0) {
+      // 返回第一个 chunk 的最高相似度用于调试
+      const topSim = (rawData || [])
+        .map((c: { embedding: unknown }) => {
+          const emb = parseEmbedding(c.embedding);
+          return emb.length > 0 ? cosineSimilarity(queryVector, emb) : 0;
+        })
+        .sort((a: number, b: number) => b - a)[0] || 0;
       answer = "知识库中暂无相关内容，请先上传文档并完成向量化。";
+      return NextResponse.json({
+        data: {
+          answer,
+          sources: [],
+          debug: { team_id: user.team_id, docCount: teamDocs?.length || 0, chunkCount: (rawData || []).length, topSimilarity: Math.round(topSim * 100) / 100 },
+        },
+      });
     } else {
       const ragChunks = chunks.map((c) => ({
         content: c.content,
