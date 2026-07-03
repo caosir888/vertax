@@ -10,13 +10,13 @@ export async function checkPlanLimit(
   const supabase = getSupabase();
 
   // 查询团队方案
-  const { data: tenant } = await supabase
+  const { data: tenant, error: tenantError } = await supabase
     .from("tenants")
     .select("plan, subscription_status, trial_ends_at")
     .eq("id", teamId)
-    .single();
+    .maybeSingle();
 
-  if (!tenant) return { allowed: false, error: "团队不存在" };
+  if (tenantError || !tenant) return { allowed: false, error: "团队不存在" };
 
   // 检查试用是否过期
   if (tenant.subscription_status === "trial" && tenant.trial_ends_at) {

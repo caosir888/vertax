@@ -13,6 +13,10 @@ interface EmbeddingResponse {
 
 // 单条文本向量化
 export async function getEmbedding(text: string): Promise<number[]> {
+  if (!EMBEDDING_API_KEY) {
+    throw new Error("未配置 EMBEDDING_API_KEY 环境变量");
+  }
+
   const res = await fetch(EMBEDDING_API_URL, {
     method: "POST",
     headers: {
@@ -67,6 +71,7 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
 
 // 余弦相似度（两个向量越相似值越接近1）
 export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
   let dot = 0;
   let normA = 0;
   let normB = 0;

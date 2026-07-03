@@ -19,7 +19,10 @@ export async function POST(request: NextRequest) {
     .eq("email", email)
     .maybeSingle();
 
-  if (error || !user) {
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!user) {
     return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
   }
 

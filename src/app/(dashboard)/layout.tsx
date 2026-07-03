@@ -166,6 +166,18 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
+        {trialExpired && (
+          <div className="bg-red-500 text-white text-center text-sm py-2 px-4">
+            试用已到期，部分功能受限。
+            <a href="/settings" className="underline ml-2 font-medium">立即升级</a>
+          </div>
+        )}
+        {trialWarning && !trialExpired && (
+          <div className="bg-yellow-400 text-yellow-900 text-center text-sm py-2 px-4">
+            试用即将到期，请尽快升级以免影响使用。
+            <a href="/settings" className="underline ml-2 font-medium">立即升级</a>
+          </div>
+        )}
         <main key={pathname} className="animate-page-enter">{children}</main>
       </div>
 

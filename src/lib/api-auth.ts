@@ -21,12 +21,15 @@ export async function validateApiKey(apiKey: string): Promise<ApiKeyResult> {
     return { valid: false, error: "API Key 不存在或已失效" };
   }
 
-  // 更新最后使用时间
-  getSupabase()
-    .from("api_keys")
-    .update({ last_used_at: new Date().toISOString() })
-    .eq("key", apiKey)
-    .then(() => {});
+  // 更新最后使用时间（fire-and-forget）
+  (async () => {
+    try {
+      await getSupabase()
+        .from("api_keys")
+        .update({ last_used_at: new Date().toISOString() })
+        .eq("key", apiKey);
+    } catch { /* 忽略更新失败 */ }
+  })();
 
   return { valid: true, team_id: data.team_id };
 }

@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import crypto from "crypto";
 
 export type WebhookEvent =
   | "lead.created"
@@ -6,16 +7,7 @@ export type WebhookEvent =
   | "content.published"
   | "team.member_added";
 
-const ALL_EVENTS: WebhookEvent[] = [
-  "lead.created",
-  "lead.updated",
-  "content.published",
-  "team.member_added",
-];
-
 function signPayload(payload: string, secret: string): string {
-  // 简单的 HMAC-SHA256 签名（Node 内置 crypto）
-  const crypto = require("crypto");
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 

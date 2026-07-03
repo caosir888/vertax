@@ -136,8 +136,10 @@ export function renderSiteHTML(
     )
     .join("\n");
 
-  const pageTitle = settings.seoTitle || `${settings.companyName} - ${settings.tagline}`;
-  const metaDesc = settings.seoDescription || `${settings.companyName} — ${settings.tagline}. ${settings.industry ? `${settings.industry}行业的专业B2B解决方案提供商。` : ""}`;
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const pageTitle = esc(settings.seoTitle || `${settings.companyName} - ${settings.tagline}`);
+  const metaDesc = esc(settings.seoDescription || `${settings.companyName} — ${settings.tagline}. ${settings.industry ? `${settings.industry}行业的专业B2B解决方案提供商。` : ""}`);
   const ogImage = settings.ogImage || "";
   const canonicalUrl = settings.customDomain ? `https://${settings.customDomain}` : (siteId ? `/api/sites/${siteId}/preview` : "");
 
@@ -210,7 +212,7 @@ export function renderSiteHTML(
 <body>
   <header>
     <div class="container">
-      <div class="logo">${settings.companyName}</div>
+      <div class="logo">${esc(settings.companyName)}</div>
       <nav>${navLinks}</nav>
     </div>
   </header>
@@ -227,9 +229,9 @@ export function renderSiteHTML(
         <p id="vertax-contact-msg" class="contact-msg"></p>
       </form>
       <div class="contact-info">
-        ${settings.contactEmail ? `<p>📧 ${settings.contactEmail}</p>` : ""}
-        ${settings.contactPhone ? `<p>📞 ${settings.contactPhone}</p>` : ""}
-        ${settings.contactAddress ? `<p>📍 ${settings.contactAddress}</p>` : ""}
+        ${settings.contactEmail ? `<p>📧 ${esc(settings.contactEmail)}</p>` : ""}
+        ${settings.contactPhone ? `<p>📞 ${esc(settings.contactPhone)}</p>` : ""}
+        ${settings.contactAddress ? `<p>📍 ${esc(settings.contactAddress)}</p>` : ""}
       </div>
     </div>
   </section>
@@ -278,8 +280,8 @@ export function renderSiteHTML(
   }
   <footer>
     <div class="container">
-      <p>&copy; ${new Date().getFullYear()} ${settings.companyName}. All rights reserved.</p>
-      <p>${settings.contactEmail} | ${settings.contactPhone}</p>
+      <p>&copy; ${new Date().getFullYear()} ${esc(settings.companyName)}. All rights reserved.</p>
+      <p>${esc(settings.contactEmail)} | ${esc(settings.contactPhone)}</p>
     </div>
   </footer>
   ${siteId ? `<script>

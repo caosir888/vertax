@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     .select("user_id")
     .eq("team_id", auth.team_id)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   const { data, error } = await getSupabase()
     .from("leads")

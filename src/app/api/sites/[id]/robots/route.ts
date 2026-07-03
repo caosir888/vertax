@@ -18,9 +18,10 @@ export async function GET(
     return new NextResponse("Site not found", { status: 404 });
   }
 
-  const settings = site.settings || {};
-  const baseUrl = settings.customDomain
-    ? `https://${settings.customDomain}`
+  const settings = typeof site.settings === "string" ? JSON.parse(site.settings) : (site.settings || {});
+  const customDomain = (settings as Record<string, string>).customDomain;
+  const baseUrl = customDomain
+    ? `https://${customDomain}`
     : `${request.nextUrl.protocol}//${request.nextUrl.host}`;
 
   const sitemapUrl = `${baseUrl}/api/sites/${id}/sitemap`;

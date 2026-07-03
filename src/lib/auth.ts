@@ -1,9 +1,16 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-secret-change-me-in-production-123456"
-);
+function getSecret(): Uint8Array {
+  const key = process.env.JWT_SECRET;
+  if (!key) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET 环境变量未设置，生产环境必须配置");
+    }
+    return new TextEncoder().encode("dev-secret-do-not-use-in-production");
+  }
+  return new TextEncoder().encode(key);
+}
 
 const COOKIE_NAME = "vertax_token";
 
@@ -20,13 +27,13 @@ export async function createToken(user: SessionUser): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(secret);
+    .sign(getSecret());
 }
 
 // 验证 JWT token 并返回用户信息
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as unknown as SessionUser;
   } catch {
     return null;

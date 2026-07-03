@@ -45,6 +45,8 @@ export default function MemosPage() {
       }
       const json = await res.json();
       setMemos(json.data || []);
+    } catch {
+      toast.error("加载备忘录失败");
     } finally {
       setLoading(false);
     }

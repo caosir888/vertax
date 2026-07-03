@@ -20,11 +20,15 @@ export async function POST(
   const { platform = "manual", url = "", notes = "" } = body;
 
   // 更新内容状态为已发布
-  await getSupabase()
+  const { error: updateError } = await getSupabase()
     .from("contents")
     .update({ status: "published", updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("team_id", user.team_id);
+
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
 
   // 记录发布
   const { data, error } = await getSupabase()

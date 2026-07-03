@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { getSession } from "@/lib/auth";
 
 // POST /api/sites/[id]/track — 公开访问，记录页面浏览
 export async function POST(
@@ -30,11 +31,16 @@ export async function POST(
   return NextResponse.json({ ok: true });
 }
 
-// GET /api/sites/[id]/track — 获取站点统计数据
+// GET /api/sites/[id]/track — 获取站点统计数据（需登录）
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getSession();
+  if (!user) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
   const { id } = await params;
 
   const { data, error } = await getSupabase()

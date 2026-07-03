@@ -18,15 +18,16 @@ export async function GET(
     return new NextResponse("Site not found", { status: 404 });
   }
 
-  const settings = site.settings || {};
-  const pages = site.pages || [];
-  const baseUrl = settings.customDomain
-    ? `https://${settings.customDomain}`
+  const settings = typeof site.settings === "string" ? JSON.parse(site.settings) : (site.settings || {});
+  const pages: { slug: string }[] = typeof site.pages === "string" ? JSON.parse(site.pages) : (site.pages || []);
+  const customDomain = (settings as Record<string, string>).customDomain;
+  const baseUrl = customDomain
+    ? `https://${customDomain}`
     : `${request.nextUrl.protocol}//${request.nextUrl.host}/api/sites/${id}/preview`;
 
   const urls = [
     { loc: baseUrl, priority: "1.0", changefreq: "weekly" },
-    ...pages.map((p: { slug: string }) => ({
+    ...pages.map((p) => ({
       loc: `${baseUrl}#${p.slug}`,
       priority: "0.8",
       changefreq: "monthly",
