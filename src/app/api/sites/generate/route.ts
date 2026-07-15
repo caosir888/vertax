@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { chat } from "@/lib/llm";
 import { logActivity } from "@/lib/activity-logger";
 import { sendNotification } from "@/lib/notifications";
-import { siteTemplates, buildSitePrompt, parseSiteContent, type SiteSettings } from "@/lib/templates-site";
+import { siteTemplates, buildSitePrompt, buildEcommercePrompt, parseSiteContent, type SiteSettings } from "@/lib/templates-site";
 
 // POST /api/sites/generate — AI 生成独立站内容
 export async function POST(request: NextRequest) {
@@ -59,7 +59,9 @@ export async function POST(request: NextRequest) {
       // 知识库搜索失败不影响生成
     }
 
-    const prompt = buildSitePrompt(template, finalSettings, knowledgeContext);
+    const prompt = template.id === "spiritual-ecommerce"
+      ? buildEcommercePrompt(template, finalSettings, knowledgeContext)
+      : buildSitePrompt(template, finalSettings, knowledgeContext);
     const result = await chat([{ role: "user", content: prompt }]);
 
     const pages = parseSiteContent(result);
