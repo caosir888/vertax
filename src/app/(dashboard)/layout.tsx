@@ -22,6 +22,7 @@ const navLinks = [
   { href: "/memos", label: "备忘录", icon: "📝" },
   { href: "/knowledge", label: "知识库", icon: "📚" },
   { href: "/content", label: "内容工坊", icon: "✍️" },
+  { href: "/radar", label: "获客雷达", icon: "📡" },
   { href: "/leads", label: "线索管理", icon: "👥" },
   { href: "/sites", label: "独立站", icon: "🌐" },
   { href: "/analytics", label: "数据分析", icon: "📈" },
