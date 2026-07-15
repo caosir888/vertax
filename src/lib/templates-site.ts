@@ -180,9 +180,11 @@ export function renderSiteHTML(
     header { background: white; border-bottom: 1px solid #e5e5e5; position: sticky; top: 0; z-index: 100; }
     header .container { display: flex; align-items: center; justify-content: space-between; padding-top: 16px; padding-bottom: 16px; }
     .logo { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
-    nav { display: flex; gap: 24px; }
+    nav { display: flex; gap: 24px; align-items: center; }
     .nav-link { color: #666; text-decoration: none; font-size: 0.875rem; font-weight: 500; }
     .nav-link:hover { color: var(--primary); }
+    .nav-inquiry-btn { background: var(--primary); color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; white-space: nowrap; }
+    .nav-inquiry-btn:hover { opacity: 0.88; }
     .page-section { padding: 80px 0; }
     .page-section:nth-child(even) { background: #f9fafb; }
     h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5em; color: #111; }
@@ -216,7 +218,10 @@ export function renderSiteHTML(
   <header>
     <div class="container">
       <div class="logo">${esc(settings.companyName)}</div>
-      <nav>${navLinks}</nav>
+      <nav>
+        ${navLinks}
+        ${settings.enableChat && siteId ? `<button class="nav-inquiry-btn" onclick="document.getElementById('vertax-chat-overlay').classList.add('open');document.body.style.overflow='hidden'">💬 Inquiry Desk</button>` : ""}
+      </nav>
     </div>
   </header>
   ${pageHTML}
@@ -317,42 +322,99 @@ function markdownToHTML(md: string): string {
 function chatWidgetHTML(siteId: string, welcomeMessage: string): string {
   return `
 <style>
-  .vertax-chat-btn { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; z-index: 9999; transition: transform 0.2s; }
-  .vertax-chat-btn:hover { transform: scale(1.08); }
-  .vertax-chat-panel { position: fixed; bottom: 96px; right: 24px; width: 380px; max-width: calc(100vw - 48px); height: 520px; max-height: calc(100vh - 140px); background: white; border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.16); z-index: 9998; display: none; flex-direction: column; overflow: hidden; font-size: 14px; }
-  .vertax-chat-panel.open { display: flex; }
-  .vertax-chat-header { background: var(--primary); color: white; padding: 16px 20px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
-  .vertax-chat-close { background: none; border: none; color: white; cursor: pointer; font-size: 18px; opacity: 0.8; }
-  .vertax-chat-close:hover { opacity: 1; }
-  .vertax-chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-  .vertax-chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; line-height: 1.5; word-break: break-word; }
-  .vertax-chat-bubble.user { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
-  .vertax-chat-bubble.bot { align-self: flex-start; background: #f3f4f6; color: #1a1a1a; border-bottom-left-radius: 4px; }
-  .vertax-chat-bubble.bot p { margin: 0; color: #1a1a1a; }
-  .vertax-chat-bubble.bot p + p { margin-top: 0.5em; }
-  .vertax-chat-typing { align-self: flex-start; display: flex; gap: 4px; padding: 10px 14px; }
-  .vertax-chat-typing span { width: 8px; height: 8px; background: #aaa; border-radius: 50%; animation: vertax-bounce 1.4s infinite ease-in-out both; }
-  .vertax-chat-typing span:nth-child(1) { animation-delay: -0.32s; }
-  .vertax-chat-typing span:nth-child(2) { animation-delay: -0.16s; }
-  @keyframes vertax-bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
-  .vertax-chat-input-wrap { border-top: 1px solid #e5e5e5; padding: 12px 16px; display: flex; gap: 8px; }
-  .vertax-chat-input-wrap input { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 14px; outline: none; }
-  .vertax-chat-input-wrap input:focus { border-color: var(--primary); }
-  .vertax-chat-input-wrap button { background: var(--primary); color: white; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600; font-size: 14px; }
-  .vertax-chat-input-wrap button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .vertax-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 9999; display: none; align-items: center; justify-content: center;
+  }
+  .vertax-overlay.open { display: flex; }
+  .vertax-modal {
+    background: #fff; border-radius: 16px; width: 720px;
+    max-width: calc(100vw - 32px); height: 600px;
+    max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+    box-shadow: 0 16px 64px rgba(0,0,0,0.2); overflow: hidden;
+  }
+  .vertax-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px; border-bottom: 1px solid #eee;
+  }
+  .vertax-modal-title { font-size: 1.125rem; font-weight: 700; color: #111; }
+  .vertax-modal-close {
+    background: none; border: none; font-size: 1.5rem; color: #999;
+    cursor: pointer; width: 36px; height: 36px; display: flex; align-items: center;
+    justify-content: center; border-radius: 8px; transition: all 0.15s;
+  }
+  .vertax-modal-close:hover { background: #f5f5f5; color: #333; }
+  .vertax-modal-body {
+    flex: 1; overflow-y: auto; padding: 20px 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .vertax-msg { display: flex; gap: 10px; }
+  .vertax-msg.user { flex-direction: row-reverse; }
+  .vertax-msg-avatar {
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+  }
+  .vertax-msg.bot .vertax-msg-avatar { background: #f0f0f0; color: #666; }
+  .vertax-msg.user .vertax-msg-avatar { background: var(--primary); color: #fff; }
+  .vertax-msg-bubble {
+    max-width: 75%; padding: 12px 16px; border-radius: 12px; font-size: 0.875rem;
+    line-height: 1.6; word-break: break-word;
+  }
+  .vertax-msg.bot .vertax-msg-bubble { background: #f5f5f5; color: #333; }
+  .vertax-msg.user .vertax-msg-bubble { background: var(--primary); color: #fff; }
+  .vertax-typing { display: flex; gap: 4px; padding: 12px 0; }
+  .vertax-typing span {
+    width: 6px; height: 6px; background: #ccc; border-radius: 50%;
+    animation: vertax-bounce 1.4s infinite ease-in-out both;
+  }
+  .vertax-typing span:nth-child(1) { animation-delay: -0.32s; }
+  .vertax-typing span:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes vertax-bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
+  .vertax-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vertax-suggestion {
+    background: transparent; color: #555; border: 1px solid #ddd;
+    border-radius: 8px; padding: 8px 14px; font-size: 0.8125rem;
+    cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .vertax-suggestion:hover { border-color: var(--primary); color: var(--primary); }
+  .vertax-modal-footer {
+    padding: 16px 24px; border-top: 1px solid #eee; display: flex; gap: 12px;
+  }
+  .vertax-modal-footer textarea {
+    flex: 1; border: 1px solid #ddd; border-radius: 10px; padding: 10px 14px;
+    font-size: 0.875rem; outline: none; resize: none; min-height: 44px;
+    font-family: inherit; line-height: 1.5; transition: border-color 0.15s;
+  }
+  .vertax-modal-footer textarea:focus { border-color: var(--primary); }
+  .vertax-send-btn {
+    background: var(--primary); color: #fff; border: none; border-radius: 10px;
+    padding: 0 20px; font-weight: 600; font-size: 0.875rem; cursor: pointer;
+    font-family: inherit; transition: opacity 0.15s; white-space: nowrap;
+  }
+  .vertax-send-btn:hover { opacity: 0.88; }
+  .vertax-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  @media (max-width: 768px) {
+    .vertax-modal { height: 100vh; max-height: 100vh; border-radius: 0; max-width: 100vw; }
+  }
 </style>
-<div id="vertax-chat-btn" class="vertax-chat-btn" title="在线咨询">💬</div>
-<div id="vertax-chat-panel" class="vertax-chat-panel">
-  <div class="vertax-chat-header">
-    <span>在线咨询</span>
-    <button id="vertax-chat-close" class="vertax-chat-close">✕</button>
-  </div>
-  <div id="vertax-chat-messages" class="vertax-chat-messages"></div>
-  <div class="vertax-chat-input-wrap">
-    <input id="vertax-chat-input" type="text" placeholder="输入你的问题…" />
-    <button id="vertax-chat-send">发送</button>
+
+<div id="vertax-chat-overlay" class="vertax-overlay">
+  <div class="vertax-modal">
+    <div class="vertax-modal-header">
+      <span class="vertax-modal-title">Inquiry Desk</span>
+      <button class="vertax-modal-close" id="vertax-chat-close">&times;</button>
+    </div>
+    <div class="vertax-modal-body">
+      <div id="vertax-chat-messages"></div>
+      <div id="vertax-chat-suggestions" class="vertax-suggestions"></div>
+    </div>
+    <div class="vertax-modal-footer">
+      <textarea id="vertax-chat-input" rows="1" placeholder="Ask about products, pricing, or sourcing guidance..."></textarea>
+      <button class="vertax-send-btn" id="vertax-chat-send">Send</button>
+    </div>
   </div>
 </div>
+
 <script>
 (function() {
   var siteId = ${JSON.stringify(siteId)};
@@ -361,41 +423,62 @@ function chatWidgetHTML(siteId: string, welcomeMessage: string): string {
   var loading = false;
   var history = [];
 
-  var btn = document.getElementById("vertax-chat-btn");
-  var panel = document.getElementById("vertax-chat-panel");
-  var closeBtn = document.getElementById("vertax-chat-close");
+  var overlay = document.getElementById("vertax-chat-overlay");
   var messagesEl = document.getElementById("vertax-chat-messages");
   var inputEl = document.getElementById("vertax-chat-input");
   var sendBtn = document.getElementById("vertax-chat-send");
+  var suggestionsEl = document.getElementById("vertax-chat-suggestions");
 
-  function escapeHtml(text) {
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
+  var defaultSuggestions = [
+    "Tell me about your main products and specifications.",
+    "Which certifications do you have for export?",
+    "What are your MOQ and typical lead times?",
+    "Help me prepare an inquiry with product details."
+  ];
 
-  function simpleMarkdown(text) {
-    return text
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>")
-      .replace(/\\n\\n/g, "</p><p>")
-      .replace(/\\n/g, "<br>")
-      .replace(/^- (.+)$/gm, "<li>$1</li>")
-      .replace(/^(?!<[li]|<p|<strong|<br)(.+)$/gm, "<p>$1</p>");
+  function renderSuggestions() {
+    if (!suggestionsEl) return;
+    suggestionsEl.innerHTML = "";
+    defaultSuggestions.forEach(function(s) {
+      var btn = document.createElement("button");
+      btn.className = "vertax-suggestion";
+      btn.textContent = s;
+      btn.addEventListener("click", function() {
+        inputEl.value = s;
+        inputEl.focus();
+      });
+      suggestionsEl.appendChild(btn);
+    });
   }
 
   function addBubble(text, type) {
-    var div = document.createElement("div");
-    div.className = "vertax-chat-bubble " + type;
-    div.innerHTML = type === "bot" ? simpleMarkdown(text) : escapeHtml(text);
-    messagesEl.appendChild(div);
+    var wrap = document.createElement("div");
+    wrap.className = "vertax-msg " + type;
+    var avatar = document.createElement("div");
+    avatar.className = "vertax-msg-avatar";
+    avatar.textContent = type === "bot" ? "AI" : "U";
+    var bubble = document.createElement("div");
+    bubble.className = "vertax-msg-bubble";
+    bubble.textContent = text;
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   function showTyping() {
-    var div = document.createElement("div");
-    div.className = "vertax-chat-typing";
-    div.id = "vertax-chat-typing";
-    div.innerHTML = "<span></span><span></span><span></span>";
-    messagesEl.appendChild(div);
+    var wrap = document.createElement("div");
+    wrap.className = "vertax-msg bot";
+    wrap.id = "vertax-chat-typing";
+    var avatar = document.createElement("div");
+    avatar.className = "vertax-msg-avatar";
+    avatar.textContent = "AI";
+    var dots = document.createElement("div");
+    dots.className = "vertax-typing";
+    dots.innerHTML = "<span></span><span></span><span></span>";
+    wrap.appendChild(avatar);
+    wrap.appendChild(dots);
+    messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
@@ -408,6 +491,7 @@ function chatWidgetHTML(siteId: string, welcomeMessage: string): string {
     loading = v;
     sendBtn.disabled = v;
     inputEl.disabled = v;
+    sendBtn.textContent = v ? "..." : "Send";
   }
 
   function addWelcome() {
@@ -424,6 +508,7 @@ function chatWidgetHTML(siteId: string, welcomeMessage: string): string {
     history.push({ role: "user", content: text });
     setLoading(true);
     showTyping();
+    if (suggestionsEl) suggestionsEl.style.display = "none";
 
     try {
       var resp = await fetch("/api/sites/" + siteId + "/chat", {
@@ -439,29 +524,50 @@ function chatWidgetHTML(siteId: string, welcomeMessage: string): string {
         if (sessionId) {
           localStorage.setItem("vertax_site_chat_" + siteId, sessionId);
         }
-        var answer = json.data.answer || "抱歉，我暂时无法回答这个问题。";
+        var answer = json.data.answer || "Sorry, I cannot answer that question right now.";
         addBubble(answer, "bot");
         history.push({ role: "assistant", content: answer });
       } else {
-        addBubble("抱歉，出了点问题，请稍后再试。", "bot");
+        addBubble("Sorry, something went wrong. Please try again.", "bot");
       }
     } catch (e) {
       hideTyping();
-      addBubble("网络错误，请稍后再试。", "bot");
+      addBubble("Network error. Please try again.", "bot");
     }
     setLoading(false);
   }
 
-  btn.addEventListener("click", function() {
-    panel.classList.toggle("open");
-    if (panel.classList.contains("open") && !messagesEl.children.length) {
-      addWelcome();
+  overlay.addEventListener("click", function(e) {
+    if (e.target === overlay) {
+      overlay.classList.remove("open");
+      document.body.style.overflow = "";
     }
   });
 
-  closeBtn.addEventListener("click", function() {
-    panel.classList.remove("open");
+  document.getElementById("vertax-chat-close").addEventListener("click", function() {
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
   });
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" && overlay.classList.contains("open")) {
+      overlay.classList.remove("open");
+      document.body.style.overflow = "";
+    }
+  });
+
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      if (m.attributeName === "class" && overlay.classList.contains("open")) {
+        inputEl.focus();
+        if (messagesEl.children.length === 0) {
+          addWelcome();
+          renderSuggestions();
+        }
+      }
+    });
+  });
+  observer.observe(overlay, { attributes: true, attributeFilter: ["class"] });
 
   sendBtn.addEventListener("click", sendMessage);
   inputEl.addEventListener("keydown", function(e) {

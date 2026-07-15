@@ -25,10 +25,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "公司名称不能为空" }, { status: 400 });
   }
 
-  // 应用模板主色
+  // 应用模板主色，默认开启 AI 聊天助手
   const finalSettings = {
     ...settings,
     primaryColor: settings.primaryColor || template.primaryColor,
+    enableChat: settings.enableChat !== undefined ? settings.enableChat : true,
+    chatWelcomeMessage: settings.chatWelcomeMessage || "你好！我是 AI 助手，可以回答关于我们产品和服务的任何问题，欢迎咨询！",
   };
 
   try {
