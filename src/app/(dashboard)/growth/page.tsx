@@ -133,6 +133,41 @@ export default function GrowthPage() {
   const [generatingContent, setGeneratingContent] = useState<string | null>(null);
   const [viewContent, setViewContent] = useState<{ title: string; content: string } | null>(null);
 
+  // SEO/AEO 状态
+  const [seoData, setSeoData] = useState<{
+    items: SeoAuditItem[];
+    stats: { total: number; avgSEO: number; avgAEO: number; withSchema: number; withGeo: number; lowScore: number };
+  } | null>(null);
+  const [seoLoading, setSeoLoading] = useState(false);
+  const [seoScanning, setSeoScanning] = useState(false);
+  const [seoSearch, setSeoSearch] = useState("");
+  const [seoSort, setSeoSort] = useState("seo_score");
+  const [seoMinScore, setSeoMinScore] = useState(0);
+  const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
+
+  interface SeoAuditItem {
+    id: string;
+    content_id: string;
+    seo_score: number;
+    aeo_score: number;
+    title_score: number;
+    meta_description_score: number;
+    content_structure_score: number;
+    keyword_usage_score: number;
+    readability_score: number;
+    internal_links_score: number;
+    has_schema: boolean;
+    has_geo: boolean;
+    has_faq: boolean;
+    issues: string[];
+    recommendations: string[];
+    word_count: number;
+    title: string;
+    status: string;
+    tags: string[];
+    language: string;
+  }
+
   /* ========== 数据加载 ========== */
 
   const loadClusters = useCallback(async () => {
@@ -598,6 +633,254 @@ export default function GrowthPage() {
     );
   }
 
+  /* ========== SEO/AEO 数据加载 ========== */
+
+  const loadSEOData = useCallback(async () => {
+    setSeoLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (seoSearch) params.set("search", seoSearch);
+      params.set("sort", seoSort);
+      if (seoMinScore > 0) params.set("min_score", String(seoMinScore));
+      const res = await fetch(`/api/seo/audits?${params}`);
+      const json = await res.json();
+      if (json.data) setSeoData(json.data);
+    } catch { toast.error("加载SEO数据失败"); }
+    finally { setSeoLoading(false); }
+  }, [seoSearch, seoSort, seoMinScore]);
+
+  useEffect(() => {
+    if (activeTab === "seo") loadSEOData();
+  }, [activeTab, loadSEOData]);
+
+  const handleBatchScan = async () => {
+    setSeoScanning(true);
+    try {
+      const res = await fetch("/api/seo/audits", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const json = await res.json();
+      if (json.data) {
+        toast.success(`已扫描 ${json.data.scanned} 条内容`);
+        loadSEOData();
+      } else {
+        toast.error(json.error || "扫描失败");
+      }
+    } catch { toast.error("扫描失败"); }
+    finally { setSeoScanning(false); }
+  };
+
+  function getScoreColor(score: number) {
+    if (score >= 80) return "text-green-600 bg-green-50 border-green-200";
+    if (score >= 60) return "text-amber-600 bg-amber-50 border-amber-200";
+    return "text-red-600 bg-red-50 border-red-200";
+  }
+
+  function getScoreBadge(score: number) {
+    if (score >= 80) return "bg-green-100 text-green-700";
+    if (score >= 60) return "bg-amber-100 text-amber-700";
+    return "bg-red-100 text-red-700";
+  }
+
+  /* ========== 渲染：SEO/AEO 工作台 ========== */
+
+  function renderSEO() {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-bold text-black">SEO / AEO 工作台</h2>
+            <p className="text-sm text-zinc-500 mt-1">内容质量检测 · Meta 合规 · FAQPage Schema · AI 引擎可见性</p>
+          </div>
+          <button
+            onClick={handleBatchScan}
+            disabled={seoScanning}
+            className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {seoScanning ? "扫描中..." : "批量扫描"}
+          </button>
+        </div>
+
+        {/* 统计卡片 */}
+        {seoData?.stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">{seoData.stats.total} 条内容</p>
+              <p className="text-2xl font-bold">{seoLoading ? "..." : seoData.items.length}</p>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">平均 SEO 分</p>
+              <p className={`text-2xl font-bold ${seoData.stats.avgSEO >= 80 ? "text-green-600" : seoData.stats.avgSEO >= 60 ? "text-amber-600" : "text-red-600"}`}>
+                {seoData.stats.avgSEO}
+              </p>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">平均 AEO 分</p>
+              <p className={`text-2xl font-bold ${seoData.stats.avgAEO >= 80 ? "text-green-600" : seoData.stats.avgAEO >= 60 ? "text-amber-600" : "text-red-600"}`}>
+                {seoData.stats.avgAEO}
+              </p>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">有 Schema</p>
+              <p className="text-2xl font-bold text-purple-600">{seoData.stats.withSchema}</p>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">有 GEO 版本</p>
+              <p className="text-2xl font-bold text-blue-600">{seoData.stats.withGeo}</p>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">问题内容 (&lt;60)</p>
+              <p className={`text-2xl font-bold ${seoData.stats.lowScore > 0 ? "text-red-600" : "text-green-600"}`}>
+                {seoData.stats.lowScore}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 搜索和筛选 */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <input
+            type="text"
+            value={seoSearch}
+            onChange={(e) => setSeoSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") loadSEOData(); }}
+            placeholder="搜索标题、关键词..."
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-56"
+          />
+          <select value={seoSort} onChange={(e) => setSeoSort(e.target.value)} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none">
+            <option value="seo_score">SEO 分 ↑ 最低优先</option>
+            <option value="aeo_score">AEO 分 ↑ 最低优先</option>
+          </select>
+          <div className="flex items-center gap-1.5">
+            {[
+              [0, "全部内容"],
+              [80, "≥80 优秀"],
+              [60, "60–79 良好"],
+              [1, "<60 需改进"],
+            ].map(([val, label]) => (
+              <button
+                key={val as number}
+                onClick={() => setSeoMinScore(val as number)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  seoMinScore === val
+                    ? "bg-black text-white border-black"
+                    : "border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                }`}
+              >
+                {label as string}
+              </button>
+            ))}
+          </div>
+          {seoMinScore === 1 && (
+            <span className="text-xs text-zinc-400">正在筛选 &lt;60 分</span>
+          )}
+          <span className="text-xs text-zinc-400 ml-auto">点击行展开检查详情</span>
+        </div>
+
+        {/* 内容列表 */}
+        {seoLoading ? (
+          <div className="space-y-2">{[1, 2, 3, 4].map((i) => <div key={i} className="h-16 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+        ) : !seoData?.items.length ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
+            <p className="text-sm text-zinc-400">暂无 SEO 审计数据</p>
+            <p className="text-xs text-zinc-300 mt-1">点击"批量扫描"对现有内容进行 SEO/AEO 分析</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {/* 表头 */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-medium text-zinc-400">
+              <span className="col-span-1">SEO</span>
+              <span className="col-span-1">AEO</span>
+              <span className="col-span-4">标题</span>
+              <span className="col-span-1">状态</span>
+              <span className="col-span-2">关键词</span>
+              <span className="col-span-1 text-right">字数</span>
+              <span className="col-span-2 text-center">标记</span>
+            </div>
+            {seoData.items.map((item) => {
+              const isExpanded = expandedAudit === item.id;
+              const seoBadge = getScoreBadge(item.seo_score);
+              const aeoBadge = getScoreBadge(item.aeo_score);
+              return (
+                <div key={item.id}>
+                  <div
+                    onClick={() => setExpandedAudit(isExpanded ? null : item.id)}
+                    className="grid grid-cols-12 gap-2 px-4 py-3 rounded-xl border border-zinc-100 bg-white hover:border-zinc-200 cursor-pointer transition-colors items-center"
+                  >
+                    <span className={`col-span-1 text-xs font-bold px-1.5 py-1 rounded text-center ${seoBadge}`}>
+                      {item.seo_score}
+                    </span>
+                    <span className={`col-span-1 text-xs font-bold px-1.5 py-1 rounded text-center ${aeoBadge}`}>
+                      {item.aeo_score}
+                    </span>
+                    <div className="col-span-4 min-w-0">
+                      <p className="text-sm font-medium text-black truncate">{item.title || "未命名"}</p>
+                    </div>
+                    <span className="col-span-1 text-xs text-zinc-500">{item.status === "published" ? "published" : "draft"}</span>
+                    <span className="col-span-2 text-xs text-zinc-400 truncate">
+                      {(item.tags || []).join(", ") || item.title}
+                    </span>
+                    <span className="col-span-1 text-xs text-zinc-400 text-right">{item.word_count?.toLocaleString()} words</span>
+                    <div className="col-span-2 flex items-center justify-center gap-1.5">
+                      {item.has_schema && <span className="text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-600">Schema</span>}
+                      {item.has_geo && <span className="text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-600">GEO</span>}
+                      {item.has_faq && <span className="text-[10px] px-1 py-0.5 rounded bg-cyan-100 text-cyan-600">FAQ</span>}
+                      <span className={`text-[10px] px-1 py-0.5 rounded ${item.aeo_score >= 60 ? "bg-green-100 text-green-600" : "bg-zinc-100 text-zinc-500"}`}>AEO</span>
+                    </div>
+                  </div>
+
+                  {/* 展开详情 */}
+                  {isExpanded && (
+                    <div className="mx-2 mb-2 rounded-b-xl border border-t-0 border-zinc-200 bg-zinc-50/50 p-5 space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        {[
+                          ["标题优化", item.title_score],
+                          ["Meta 描述", item.meta_description_score],
+                          ["内容结构", item.content_structure_score],
+                          ["关键词使用", item.keyword_usage_score],
+                          ["可读性", item.readability_score],
+                          ["内链", item.internal_links_score],
+                        ].map(([label, score]) => (
+                          <div key={label as string} className={`rounded-lg border p-3 ${getScoreColor(score as number)}`}>
+                            <p className="text-xs text-zinc-500 mb-1">{label as string}</p>
+                            <p className="text-lg font-bold">{(score as number) || 0}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {item.issues?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-zinc-600 mb-2">发现的问题</p>
+                          <ul className="space-y-1">
+                            {item.issues.map((issue, i) => (
+                              <li key={i} className="text-xs text-zinc-500 flex items-start gap-1.5">
+                                <span className="text-red-400 mt-0.5">•</span>
+                                {issue}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {item.recommendations?.length > 0 && (
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                          <p className="text-xs font-bold text-blue-700 mb-2">改进建议</p>
+                          <ul className="space-y-1">
+                            {item.recommendations.map((r, i) => (
+                              <li key={i} className="text-xs text-blue-600">{i + 1}. {r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   /* ========== 占位视图 ========== */
 
   function renderPlaceholder(title: string, desc: string) {
@@ -656,7 +939,7 @@ export default function GrowthPage() {
         {activeTab === "briefs" && renderPlaceholder("内容简报", "查看和管理所有内容简报")}
         {activeTab === "content_lib" && renderPlaceholder("内容库", "浏览和管理已生成的内容资产")}
         {activeTab === "publish" && renderPlaceholder("发布策略", "制定内容发布计划和渠道策略")}
-        {activeTab === "seo" && renderPlaceholder("SEO/AEO 优化", "AI 驱动的搜索优化工具")}
+        {activeTab === "seo" && renderSEO()}
         {activeTab === "geo" && renderPlaceholder("GEO 发布中心", "多语言/多地域内容分发")}
       </div>
     </div>
