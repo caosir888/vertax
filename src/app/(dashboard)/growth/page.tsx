@@ -146,6 +146,8 @@ export default function GrowthPage() {
   const [seoSort, setSeoSort] = useState("seo_score");
   const [seoMinScore, setSeoMinScore] = useState(0);
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
+  const [fixingSeo, setFixingSeo] = useState<string | null>(null);
+  const [fixingAeo, setFixingAeo] = useState<string | null>(null);
 
   interface SeoAuditItem {
     id: string;
@@ -165,9 +167,23 @@ export default function GrowthPage() {
     recommendations: string[];
     word_count: number;
     title: string;
+    content_body?: string;
     status: string;
     tags: string[];
     language: string;
+    meta_title?: string;
+    meta_description?: string;
+    main_keyword?: string;
+    keyword_in_title?: boolean;
+    keyword_in_content?: boolean;
+    has_faq_section?: boolean;
+    has_conclusion?: boolean;
+    meta_title_score?: number;
+    word_count_score?: number;
+    keyword_score?: number;
+    faq_score?: number;
+    geo_score?: number;
+    aeo_details?: Record<string, { status: string; impact?: string; suggestion?: string }>;
   }
 
   /* ========== 数据加载 ========== */
@@ -692,13 +708,15 @@ export default function GrowthPage() {
             <h2 className="text-lg font-bold text-black">SEO / AEO 工作台</h2>
             <p className="text-sm text-zinc-500 mt-1">内容质量检测 · Meta 合规 · FAQPage Schema · AI 引擎可见性</p>
           </div>
-          <button
-            onClick={handleBatchScan}
-            disabled={seoScanning}
-            className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50"
-          >
-            {seoScanning ? "扫描中..." : "批量扫描"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBatchScan}
+              disabled={seoScanning}
+              className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50"
+            >
+              {seoScanning ? "扫描中..." : "批量扫描保存"}
+            </button>
+          </div>
         </div>
 
         {/* 统计卡片 */}
@@ -783,7 +801,7 @@ export default function GrowthPage() {
         ) : !seoData?.items.length ? (
           <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
             <p className="text-sm text-zinc-400">暂无 SEO 审计数据</p>
-            <p className="text-xs text-zinc-300 mt-1">点击"批量扫描"对现有内容进行 SEO/AEO 分析</p>
+            <p className="text-xs text-zinc-300 mt-1">点击"批量扫描保存"对现有内容进行 SEO/AEO 分析</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -793,16 +811,19 @@ export default function GrowthPage() {
               <span className="col-span-1">AEO</span>
               <span className="col-span-4">标题</span>
               <span className="col-span-1">状态</span>
-              <span className="col-span-2">关键词</span>
               <span className="col-span-1 text-right">字数</span>
-              <span className="col-span-2 text-center">标记</span>
+              <span className="col-span-4 text-center">标记</span>
             </div>
             {seoData.items.map((item) => {
               const isExpanded = expandedAudit === item.id;
               const seoBadge = getScoreBadge(item.seo_score);
               const aeoBadge = getScoreBadge(item.aeo_score);
+              const aeoDetails = item.aeo_details || {};
+              const kw = item.main_keyword || (item.tags || [])[0] || "";
+
               return (
                 <div key={item.id}>
+                  {/* 行 */}
                   <div
                     onClick={() => setExpandedAudit(isExpanded ? null : item.id)}
                     className="grid grid-cols-12 gap-2 px-4 py-3 rounded-xl border border-zinc-100 bg-white hover:border-zinc-200 cursor-pointer transition-colors items-center"
@@ -815,63 +836,195 @@ export default function GrowthPage() {
                     </span>
                     <div className="col-span-4 min-w-0">
                       <p className="text-sm font-medium text-black truncate">{item.title || "未命名"}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">{kw}</p>
                     </div>
-                    <span className="col-span-1 text-xs text-zinc-500">{item.status === "published" ? "published" : "draft"}</span>
-                    <span className="col-span-2 text-xs text-zinc-400 truncate">
-                      {(item.tags || []).join(", ") || item.title}
-                    </span>
-                    <span className="col-span-1 text-xs text-zinc-400 text-right">{item.word_count?.toLocaleString()} words</span>
-                    <div className="col-span-2 flex items-center justify-center gap-1.5">
-                      {item.has_schema && <span className="text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-600">Schema</span>}
-                      {item.has_geo && <span className="text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-600">GEO</span>}
-                      {item.has_faq && <span className="text-[10px] px-1 py-0.5 rounded bg-cyan-100 text-cyan-600">FAQ</span>}
-                      <span className={`text-[10px] px-1 py-0.5 rounded ${item.aeo_score >= 60 ? "bg-green-100 text-green-600" : "bg-zinc-100 text-zinc-500"}`}>AEO</span>
+                    <span className="col-span-1 text-xs text-zinc-500">{item.status || "draft"}</span>
+                    <span className="col-span-1 text-xs text-zinc-400 text-right">{item.word_count?.toLocaleString()} 字</span>
+                    <div className="col-span-4 flex items-center justify-end gap-1.5">
+                      {item.has_schema && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">Schema</span>}
+                      {item.has_geo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600">GEO</span>}
+                      {item.has_faq && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-600">FAQ</span>}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${item.aeo_score >= 10 ? "bg-green-100 text-green-600" : "bg-zinc-100 text-zinc-500"}`}>AEO</span>
                     </div>
                   </div>
 
-                  {/* 展开详情 */}
+                  {/* ===== 展开详情 ===== */}
                   {isExpanded && (
-                    <div className="mx-2 mb-2 rounded-b-xl border border-t-0 border-zinc-200 bg-zinc-50/50 p-5 space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        {[
-                          ["标题优化", item.title_score],
-                          ["Meta 描述", item.meta_description_score],
-                          ["内容结构", item.content_structure_score],
-                          ["关键词使用", item.keyword_usage_score],
-                          ["可读性", item.readability_score],
-                          ["内链", item.internal_links_score],
-                        ].map(([label, score]) => (
-                          <div key={label as string} className={`rounded-lg border p-3 ${getScoreColor(score as number)}`}>
-                            <p className="text-xs text-zinc-500 mb-1">{label as string}</p>
-                            <p className="text-lg font-bold">{(score as number) || 0}</p>
+                    <div className="mx-2 mb-3 rounded-b-xl border border-t-0 border-zinc-200 bg-white p-5 space-y-5">
+                      {/* SEO 检查项 */}
+                      <div>
+                        <p className="text-xs font-bold text-zinc-700 mb-3">SEO 检查项</p>
+                        <div className="space-y-2">
+                          {/* Meta Title */}
+                          <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-black">Meta Title 长度 (30–60)</p>
+                              <p className="text-xs text-zinc-400 mt-0.5">
+                                {item.meta_title ? `"${item.meta_title.substring(0, 60)}${(item.meta_title || "").length > 60 ? "..." : ""}"` : "未填写"}
+                                {" · "}{item.meta_title?.length || 0} 字符
+                              </p>
+                            </div>
+                            <span className={`text-sm font-bold ${(item.meta_title_score || 0) >= 15 ? "text-green-600" : (item.meta_title_score || 0) >= 5 ? "text-amber-600" : "text-red-500"}`}>
+                              {item.meta_title_score || 0}/20
+                            </span>
                           </div>
-                        ))}
+                          {/* Meta Description */}
+                          <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-black">Meta Description 长度 (120–160)</p>
+                              <p className="text-xs text-zinc-400 mt-0.5">
+                                {item.meta_description ? `"${item.meta_description.substring(0, 60)}..."` : "未填写"}
+                                {" · "}{item.meta_description?.length || 0} 字符
+                              </p>
+                            </div>
+                            <span className={`text-sm font-bold ${(item.meta_description_score || 0) >= 15 ? "text-green-600" : (item.meta_description_score || 0) >= 5 ? "text-amber-600" : "text-red-500"}`}>
+                              {item.meta_description_score || 0}/20
+                            </span>
+                          </div>
+                          {/* 字数 */}
+                          <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-black">字数达标 (≥1500 字)</p>
+                              <p className="text-xs text-zinc-400 mt-0.5">{item.word_count?.toLocaleString()} 字</p>
+                            </div>
+                            <span className={`text-sm font-bold ${(item.word_count_score || 0) >= 15 ? "text-green-600" : (item.word_count_score || 0) >= 5 ? "text-amber-600" : "text-red-500"}`}>
+                              {item.word_count_score || 0}/20
+                            </span>
+                          </div>
+                          {/* 关键词 */}
+                          <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-black">主关键词出现 (内容+标题)</p>
+                              <p className="text-xs text-zinc-400 mt-0.5">
+                                "{kw}" {item.keyword_in_title ? "✓标题" : "✗标题"} {item.keyword_in_content ? "✓正文" : "✗正文"}
+                              </p>
+                            </div>
+                            <span className={`text-sm font-bold ${(item.keyword_score || 0) >= 12 ? "text-green-600" : (item.keyword_score || 0) >= 5 ? "text-amber-600" : "text-red-500"}`}>
+                              {item.keyword_score || 0}/15
+                            </span>
+                          </div>
+                          {/* FAQ Schema */}
+                          <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-black">FAQPage JSON-LD</p>
+                              <p className="text-xs text-zinc-400 mt-0.5">
+                                {item.has_schema ? "✓ 已生成" : "未生成"}
+                              </p>
+                            </div>
+                            <span className={`text-sm font-bold ${item.has_schema ? "text-green-600" : "text-red-500"}`}>
+                              {item.has_schema ? 15 : 0}/15
+                            </span>
+                          </div>
+                          {/* GEO */}
+                          <div className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium text-black">GEO 优化版本</p>
+                              <p className="text-xs text-zinc-400 mt-0.5">
+                                {item.has_geo ? "✓ 已生成" : "未生成"}
+                              </p>
+                            </div>
+                            <span className={`text-sm font-bold ${item.has_geo ? "text-green-600" : "text-red-500"}`}>
+                              {item.has_geo ? 10 : 0}/10
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      {item.issues?.length > 0 && (
-                        <div>
-                          <p className="text-xs font-bold text-zinc-600 mb-2">发现的问题</p>
-                          <ul className="space-y-1">
-                            {item.issues.map((issue, i) => (
-                              <li key={i} className="text-xs text-zinc-500 flex items-start gap-1.5">
-                                <span className="text-red-400 mt-0.5">•</span>
-                                {issue}
-                              </li>
-                            ))}
-                          </ul>
+                      {/* AEO 结构检查 */}
+                      <div>
+                        <p className="text-xs font-bold text-zinc-700 mb-3">AEO 结构检查</p>
+                        <div className="space-y-1.5">
+                          {[
+                            {
+                              label: "FAQPage JSON-LD",
+                              ok: !aeoDetails.faq_schema || aeoDetails.faq_schema.status === "ok",
+                              impact: (aeoDetails.faq_schema as {impact?: string})?.impact || "缺失 — 影响 Rich Results",
+                            },
+                            {
+                              label: "GEO 优化版本",
+                              ok: !aeoDetails.geo_version || aeoDetails.geo_version.status === "ok",
+                              impact: (aeoDetails.geo_version as {impact?: string})?.impact || "缺失 — AI 引擎无法引用",
+                            },
+                            {
+                              label: "FAQ 内容区块",
+                              ok: !aeoDetails.faq_section || aeoDetails.faq_section.status === "ok",
+                              impact: (aeoDetails.faq_section as {suggestion?: string})?.suggestion || "建议追加 FAQ 段落",
+                            },
+                            {
+                              label: "结论/总结段落",
+                              ok: !aeoDetails.conclusion || aeoDetails.conclusion.status === "ok",
+                              impact: (aeoDetails.conclusion as {suggestion?: string})?.suggestion || "建议追加结论段",
+                            },
+                          ].map((check) => (
+                            <div key={check.label} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${check.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                              <span className="text-xs">{check.ok ? "✓" : "✗"}</span>
+                              <span className="text-xs font-medium">{check.label}</span>
+                              {!check.ok && <span className="text-[10px] ml-auto">{check.impact}</span>}
+                            </div>
+                          ))}
                         </div>
-                      )}
+                      </div>
 
-                      {item.recommendations?.length > 0 && (
-                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                          <p className="text-xs font-bold text-blue-700 mb-2">改进建议</p>
-                          <ul className="space-y-1">
-                            {item.recommendations.map((r, i) => (
-                              <li key={i} className="text-xs text-blue-600">{i + 1}. {r}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      {/* 操作按钮 */}
+                      <div className="flex items-center gap-2 border-t border-zinc-100 pt-4">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setFixingSeo(item.id);
+                            try {
+                              const res = await fetch("/api/seo/audits/fix-seo", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ audit_id: item.id }),
+                              });
+                              const json = await res.json();
+                              if (json.data) {
+                                toast.success("SEO 已修复，Meta 信息已优化");
+                                loadSEOData();
+                              } else {
+                                toast.error(json.error || "修复失败");
+                              }
+                            } catch { toast.error("修复失败"); }
+                            finally { setFixingSeo(null); }
+                          }}
+                          disabled={fixingSeo === item.id}
+                          className="rounded-lg bg-black px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                        >
+                          {fixingSeo === item.id ? "修复中..." : "AI 修复 SEO"}
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setFixingAeo(item.id);
+                            try {
+                              const res = await fetch("/api/seo/audits/fix-aeo", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ audit_id: item.id }),
+                              });
+                              const json = await res.json();
+                              if (json.data) {
+                                toast.success("GEO/AEO 已优化，Schema 和结构化内容已生成");
+                                loadSEOData();
+                              } else {
+                                toast.error(json.error || "优化失败");
+                              }
+                            } catch { toast.error("优化失败"); }
+                            finally { setFixingAeo(null); }
+                          }}
+                          disabled={fixingAeo === item.id}
+                          className="rounded-lg border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                        >
+                          {fixingAeo === item.id ? "优化中..." : "AI 优化 GEO"}
+                        </button>
+                        <a
+                          href={`/contents/${item.content_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="ml-auto text-xs text-zinc-400 hover:text-black underline"
+                        >
+                          前往编辑内容
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>

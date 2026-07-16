@@ -115,6 +115,111 @@ export async function auditSEO(
   }
 }
 
+export interface AEOAuditResult {
+  score: number;
+  faq_schema: { generated: boolean; score: number; max: number };
+  geo_version: { generated: boolean; score: number; max: number };
+  faq_section: { found: boolean; suggestion: string };
+  conclusion: { found: boolean; suggestion: string };
+}
+
+// AEO 内容详细分析（规则引擎，不依赖 AI）
+export function analyzeAEO(content: string, title: string): AEOAuditResult {
+  const contentLower = content.toLowerCase();
+  const hasFAQSection = /(常见问题|FAQ|frequently.?asked|Q&A|问答)/i.test(content)
+    || (content.match(/(?:^|\n)\s*(?:Q|问|问题)\s*[：:]/gm) || []).length >= 2;
+  const hasConclusion = /(总结|结论|conclusion|summary|综上所述|归纳|wrap.?up)/i.test(title + content.substring(content.length - 500));
+  const hasFAQSchema = false; // 默认未生成
+  const hasGeo = false; // 默认未生成
+
+  // 评分
+  const faqSchemaScore = hasFAQSchema ? 15 : 0;
+  const geoScore = hasGeo ? 10 : 0;
+  const totalScore = faqSchemaScore + geoScore + (hasFAQSection ? 5 : 0) + (hasConclusion ? 5 : 0);
+
+  return {
+    score: Math.min(totalScore, 30),
+    faq_schema: { generated: hasFAQSchema, score: faqSchemaScore, max: 15 },
+    geo_version: { generated: hasGeo, score: geoScore, max: 10 },
+    faq_section: {
+      found: hasFAQSection,
+      suggestion: hasFAQSection ? "" : "建议追加 FAQ 段落",
+    },
+    conclusion: {
+      found: hasConclusion,
+      suggestion: hasConclusion ? "" : "建议追加结论段",
+    },
+  };
+}
+
+// 提取或推测 meta 信息
+export function extractMetaInfo(content: string, title: string, tags: string[]): {
+  meta_title: string;
+  meta_description: string;
+  main_keyword: string;
+  keyword_in_title: boolean;
+  keyword_in_content: boolean;
+  meta_title_score: number;
+  meta_description_score: number;
+  word_count_score: number;
+  keyword_score: number;
+  has_faq_section: boolean;
+  has_conclusion: boolean;
+} {
+  const keyword = tags?.[0] || title.split(/[\s|｜-]/)[0] || "";
+  const metaTitle = title;
+  const metaDescription = content.replace(/[#*\n]/g, "").substring(0, 160).trim();
+  const wordCount = content.length;
+
+  // Meta Title 评分 (30-60 字符，满分 20)
+  const titleLen = metaTitle.length;
+  let metaTitleScore = 0;
+  if (titleLen >= 30 && titleLen <= 60) metaTitleScore = 20;
+  else if (titleLen >= 20 && titleLen <= 70) metaTitleScore = 12;
+  else if (titleLen > 0) metaTitleScore = 5;
+
+  // Meta Description 评分 (120-160 字符，满分 20)
+  const descLen = metaDescription.length;
+  let metaDescriptionScore = 0;
+  if (descLen >= 120 && descLen <= 160) metaDescriptionScore = 20;
+  else if (descLen >= 80 && descLen <= 200) metaDescriptionScore = 12;
+  else if (descLen > 0) metaDescriptionScore = 5;
+
+  // 字数评分 (≥1500 words ≈ 中文 1500 字，满分 20)
+  let wordCountScore = 0;
+  if (wordCount >= 1500) wordCountScore = 20;
+  else if (wordCount >= 800) wordCountScore = 12;
+  else if (wordCount >= 300) wordCountScore = 6;
+  else wordCountScore = 0;
+
+  // 关键词评分 (满分 15)
+  const kw = keyword.toLowerCase();
+  const inTitle = title.toLowerCase().includes(kw);
+  const inContent = content.toLowerCase().includes(kw);
+  let keywordScore = 0;
+  if (inTitle && inContent) keywordScore = 15;
+  else if (inContent) keywordScore = 8;
+  else if (inTitle) keywordScore = 5;
+
+  // 内容结构检测
+  const hasFAQ = /(常见问题|FAQ|Q&A|问答)/i.test(content);
+  const hasConclusion = /(总结|结论|conclusion|summary|综上所述)/i.test(title + content.substring(content.length - 500));
+
+  return {
+    meta_title: metaTitle,
+    meta_description: metaDescription.substring(0, 160),
+    main_keyword: keyword,
+    keyword_in_title: inTitle,
+    keyword_in_content: inContent,
+    meta_title_score: metaTitleScore,
+    meta_description_score: metaDescriptionScore,
+    word_count_score: wordCountScore,
+    keyword_score: keywordScore,
+    has_faq_section: hasFAQ,
+    has_conclusion: hasConclusion,
+  };
+}
+
 // GEO：生成 hreflang 标签
 export function generateHreflangTags(
   defaultLang: string,
