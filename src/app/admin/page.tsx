@@ -39,6 +39,7 @@ interface AdminUser {
   name: string;
   email: string;
   is_disabled: boolean;
+  is_platform_admin: boolean;
   created_at: string;
   teams: { team_id: string; team_name: string; role: string }[];
 }
@@ -212,6 +213,34 @@ export default function AdminPage() {
       const json = await res.json();
       if (json.error) { toast.error(json.error); return; }
       toast.success(current ? "已禁用" : "已启用");
+      loadUsers();
+    } catch { toast.error("操作失败"); }
+  }
+
+  async function togglePlatformAdmin(id: string, current: boolean) {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_platform_admin: !current }),
+      });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
+      toast.success(current ? "已取消平台管理员" : "已设为平台管理员");
+      loadUsers();
+    } catch { toast.error("操作失败"); }
+  }
+
+  async function updateUserRole(id: string, teamId: string, role: string) {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team_id: teamId, role }),
+      });
+      const json = await res.json();
+      if (json.error) { toast.error(json.error); return; }
+      toast.success("角色已更新");
       loadUsers();
     } catch { toast.error("操作失败"); }
   }
@@ -420,16 +449,19 @@ export default function AdminPage() {
             <div className="space-y-2">
               {users.map((u) => (
                 <div key={u.id} className={`rounded-xl border bg-white p-4 ${u.is_disabled ? "border-red-200 bg-red-50/30" : "border-zinc-200"}`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black text-xs text-white font-medium">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black text-xs text-white font-medium shrink-0">
                           {u.name?.charAt(0) || "?"}
                         </span>
                         <div>
                           <p className="text-sm font-medium text-black">{u.name}</p>
                           <p className="text-xs text-zinc-400">{u.email}</p>
                         </div>
+                        {u.is_platform_admin && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">平台管理员</span>
+                        )}
                         {u.is_disabled && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">已禁用</span>
                         )}
@@ -443,12 +475,64 @@ export default function AdminPage() {
                         <span className="text-xs text-zinc-300">{new Date(u.created_at).toLocaleDateString("zh-CN")} 注册</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => toggleUserDisable(u.id, u.is_disabled)}
-                      className={`text-xs px-2 py-1 rounded border shrink-0 ml-3 ${u.is_disabled ? "border-green-200 text-green-600 hover:bg-green-50" : "border-red-200 text-red-500 hover:bg-red-50"}`}
-                    >
-                      {u.is_disabled ? "启用" : "禁用"}
-                    </button>
+                    {/* 操作按钮组 */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                      {/* 平台管理员开关 */}
+                      <button
+                        onClick={() => togglePlatformAdmin(u.id, u.is_platform_admin)}
+                        className={`text-xs px-2 py-1 rounded border whitespace-nowrap ${
+                          u.is_platform_admin
+                            ? "border-purple-200 text-purple-600 hover:bg-purple-50"
+                            : "border-purple-200 text-purple-400 hover:bg-purple-50"
+                        }`}
+                      >
+                        {u.is_platform_admin ? "取消管理员" : "设为管理员"}
+                      </button>
+                      {/* 角色修改（每个团队一个下拉） */}
+                      {u.teams.length === 1 && (
+                        <select
+                          value={u.teams[0].role}
+                          onChange={(e) => updateUserRole(u.id, u.teams[0].team_id, e.target.value)}
+                          className="rounded border border-zinc-200 px-2 py-1 text-xs outline-none"
+                        >
+                          <option value="owner">拥有者</option>
+                          <option value="admin">管理员</option>
+                          <option value="editor">编辑者</option>
+                          <option value="viewer">只读</option>
+                        </select>
+                      )}
+                      {u.teams.length > 1 && (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [teamId, role] = e.target.value.split("|");
+                              updateUserRole(u.id, teamId, role);
+                            }
+                          }}
+                          className="rounded border border-zinc-200 px-2 py-1 text-xs outline-none"
+                        >
+                          <option value="">修改角色...</option>
+                          {u.teams.map((t) => (
+                            <optgroup key={t.team_id} label={t.team_name}>
+                              <option value={`${t.team_id}|owner`}>拥有者 {t.role === "owner" ? "✓" : ""}</option>
+                              <option value={`${t.team_id}|admin`}>管理员 {t.role === "admin" ? "✓" : ""}</option>
+                              <option value={`${t.team_id}|editor`}>编辑者 {t.role === "editor" ? "✓" : ""}</option>
+                              <option value={`${t.team_id}|viewer`}>只读 {t.role === "viewer" ? "✓" : ""}</option>
+                            </optgroup>
+                          ))}
+                        </select>
+                      )}
+                      {/* 禁用开关 */}
+                      <button
+                        onClick={() => toggleUserDisable(u.id, u.is_disabled)}
+                        className={`text-xs px-2 py-1 rounded border whitespace-nowrap ${
+                          u.is_disabled ? "border-green-200 text-green-600 hover:bg-green-50" : "border-red-200 text-red-500 hover:bg-red-50"
+                        }`}
+                      >
+                        {u.is_disabled ? "启用" : "禁用"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

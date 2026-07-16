@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   let query = getSupabase()
     .from("users")
-    .select("id, name, email, is_disabled, created_at");
+    .select("id, name, email, is_disabled, is_platform_admin, created_at");
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
