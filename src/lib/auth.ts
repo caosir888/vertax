@@ -19,6 +19,7 @@ export interface SessionUser {
   name: string;
   email: string;
   team_id?: string;
+  is_platform_admin?: boolean;
 }
 
 // 生成 JWT token

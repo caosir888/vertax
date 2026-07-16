@@ -14,6 +14,7 @@ interface DashboardData {
   contentStatusCount: Record<string, number>;
   recentLeads: { id: string; name: string; company: string; status: string; created_at: string }[];
   recentContent: { id: string; title: string; status: string; updated_at: string }[];
+  recentRegistrations: { id: string; name: string; email: string; created_at: string }[];
   monthlyLabels: string[];
   monthlyLeadData: number[];
   monthlyContentData: number[];
@@ -265,6 +266,31 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+
+            {/* ====== 最近注册（仅平台管理员可见）====== */}
+            {data.recentRegistrations && data.recentRegistrations.length > 0 && (
+              <div className="mt-8">
+                <div className="rounded-xl border border-zinc-200 bg-white p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-black">最近注册</h3>
+                    <span className="text-xs text-zinc-400">新用户</span>
+                  </div>
+                  <div className="space-y-2">
+                    {data.recentRegistrations.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between py-2 border-b border-zinc-50 last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-black">{u.name}</p>
+                          <p className="text-xs text-zinc-400">{u.email}</p>
+                        </div>
+                        <span className="text-xs text-zinc-400">
+                          {new Date(u.created_at).toLocaleDateString("zh-CN")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="mt-8 rounded-xl border border-dashed border-zinc-300 py-20 text-center text-sm text-zinc-400">

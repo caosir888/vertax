@@ -84,5 +84,25 @@ export async function POST(request: NextRequest) {
   // 异步发送欢迎邮件（不影响响应速度）
   import("@/lib/email").then((m) => m.sendWelcomeEmail(email, name)).catch(() => {});
 
+  // 异步通知平台管理员：有新用户注册
+  (async () => {
+    try {
+      const { data: admins } = await supabase
+        .from("users")
+        .select("id")
+        .eq("is_platform_admin", true);
+      if (admins?.length) {
+        await supabase.from("notifications").insert(
+          admins.map((a) => ({
+            team_id: team.id,
+            user_id: a.id,
+            title: "新用户注册",
+            message: `${name} (${email}) 刚刚注册了 VertaX`,
+          }))
+        );
+      }
+    } catch {}
+  })();
+
   return NextResponse.json({ data: { ...user, team_id: team.id } }, { status: 201 });
 }

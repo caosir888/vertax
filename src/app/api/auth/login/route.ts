@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("id, name, email, password")
+    .select("id, name, email, password, is_platform_admin")
     .eq("email", email)
     .maybeSingle();
 

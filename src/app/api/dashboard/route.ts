@@ -90,6 +90,18 @@ export async function GET(_request: NextRequest) {
     monthlyContentData.push(cc || 0);
   }
 
+  // 平台管理员：查看全平台最近注册
+  let recentRegistrations: { id: string; name: string; email: string; created_at: string }[] = [];
+  const { data: adminCheck } = await db.from("users").select("is_platform_admin").eq("id", user.id).single();
+  if (adminCheck?.is_platform_admin) {
+    const { data: regs } = await db
+      .from("users")
+      .select("id, name, email, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    recentRegistrations = (regs || []) as typeof recentRegistrations;
+  }
+
   return NextResponse.json({
     data: {
       totalLeads: totalLeads || 0,
@@ -105,6 +117,7 @@ export async function GET(_request: NextRequest) {
       monthlyLabels,
       monthlyLeadData,
       monthlyContentData,
+      recentRegistrations,
     },
   });
 }

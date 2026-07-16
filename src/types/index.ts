@@ -185,3 +185,91 @@ export interface OpportunityStats {
   stage_counts: Record<OpportunityStage, number>;
   stage_values: Record<OpportunityStage, number>;
 }
+
+// ========== 增长系统 — 主题集群 ==========
+
+export type FunnelStage = "TOFU" | "MOFU" | "BOFU";
+export type ContentIntent = "informational" | "commercial" | "transactional";
+export type BriefContentType = "BuyingGuide" | "CaseStudy" | "FAQ" | "Comparison" | "TechnicalDoc" | "UseCasePage" | "QnA" | "KnowledgeBase" | "Checklist" | "Whitepaper" | "";
+
+export interface ProblemMapItem {
+  funnel: FunnelStage;
+  persona: string;
+  question: string;
+  impact: string;
+}
+
+export interface DistributionChannel {
+  name: string;
+  type: "primary" | "secondary";
+  content_types: BriefContentType[];
+  description: string;
+}
+
+export interface TopicCluster {
+  id: string;
+  team_id: string;
+  user_id: string;
+  name: string;
+  company_name: string;
+  company_context: string;
+  buyer_context: string;
+  problem_map: ProblemMapItem[];
+  distribution_channels: DistributionChannel[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+  pillars?: ContentPillar[];
+}
+
+export interface ContentPillar {
+  id: string;
+  cluster_id: string;
+  team_id: string;
+  name: string;
+  intent_type: string;
+  description: string;
+  questions: { funnel: FunnelStage; persona: string; question: string; impact: string }[];
+  priority_personas: string[];
+  primary_channels: string[];
+  secondary_channels: string[];
+  evidence_required: number;
+  sort_order: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  briefs?: ContentBrief[];
+  evidence?: EvidenceItem[];
+}
+
+export interface ContentBrief {
+  id: string;
+  pillar_id: string;
+  team_id: string;
+  title: string;
+  description: string;
+  content_type: BriefContentType;
+  funnel_stage: FunnelStage;
+  intent: ContentIntent;
+  target_persona: string;
+  priority_question: string;
+  evidence_count: number;
+  primary_channel: string;
+  secondary_channel: string;
+  evidence_refs: { id: string; content: string }[];
+  status: string;
+  generated_content: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EvidenceItem {
+  id: string;
+  pillar_id: string;
+  team_id: string;
+  content: string;
+  source: string;
+  source_type: string;
+  created_at: string;
+}
