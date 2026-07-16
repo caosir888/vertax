@@ -12,7 +12,13 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(key);
 }
 
-// 需要登录才能访问的路由（管理后台所有模块）
+// 独立站域名 → site_id 映射
+const SITE_DOMAINS: Record<string, string> = {
+  "caosir888.online": "2fd8209f-d3f2-4f33-af94-400eb8e7d84c",
+  "www.caosir888.online": "2fd8209f-d3f2-4f33-af94-400eb8e7d84c",
+};
+
+// 需要登录才能访问的路由
 const protectedPaths = [
   "/dashboard",
   "/memos",
@@ -29,18 +35,33 @@ const protectedPaths = [
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostname = request.headers.get("host") || "";
 
-  // 检查是否是受保护的路由
+  // === 独立站域名：无需登录，直接展示 ===
+  const siteId = SITE_DOMAINS[hostname];
+  if (siteId) {
+    if (pathname === "/robots.txt") {
+      return NextResponse.rewrite(new URL(`/api/sites/${siteId}/robots`, request.url));
+    }
+    if (pathname === "/sitemap.xml") {
+      return NextResponse.rewrite(new URL(`/api/sites/${siteId}/sitemap`, request.url));
+    }
+    if (pathname.startsWith("/api/sites/")) {
+      return NextResponse.next();
+    }
+    // 所有页面请求 → 独立站预览
+    return NextResponse.rewrite(new URL(`/api/sites/${siteId}/preview`, request.url));
+  }
+
+  // === 主站：认证保护 ===
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
   if (!isProtected) return NextResponse.next();
 
-  // 获取 cookie 中的 token
   const token = request.cookies.get("vertax_token")?.value;
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // 验证 token 是否有效
   try {
     await jwtVerify(token, getSecret());
     return NextResponse.next();
@@ -62,5 +83,8 @@ export const config = {
     "/sites/:path*",
     "/tasks/:path*",
     "/settings/:path*",
+    // 独立站域名需要匹配所有页面路径
+    "/",
+    "/:path",
   ],
 };
