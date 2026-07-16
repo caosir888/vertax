@@ -24,6 +24,7 @@ const navLinks = [
   { href: "/content", label: "内容工坊", icon: "✍️" },
   { href: "/radar", label: "获客雷达", icon: "📡" },
   { href: "/leads", label: "线索管理", icon: "👥" },
+  { href: "/opportunities", label: "采购机会", icon: "💼" },
   { href: "/sites", label: "独立站", icon: "🌐" },
   { href: "/analytics", label: "数据分析", icon: "📈" },
   { href: "/tasks", label: "任务管理", icon: "✅" },

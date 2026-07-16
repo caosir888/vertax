@@ -149,3 +149,39 @@ export interface SubscriptionInfo {
   subscription_ends_at: string | null;
   limits: PlanInfo["limits"];
 }
+
+// ========== 采购机会 ==========
+
+export type OpportunityStage =
+  | "initial_contact"
+  | "needs_confirmation"
+  | "proposal_quote"
+  | "negotiation"
+  | "won"
+  | "lost";
+
+export interface Opportunity {
+  id: string;
+  team_id: string;
+  user_id: string;
+  lead_id?: string;
+  name: string;
+  company: string;
+  contact_name: string;
+  stage: OpportunityStage;
+  deal_value: number;
+  probability: number;
+  expected_close_date: string | null;
+  products_interested: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OpportunityStats {
+  total_count: number;
+  total_pipeline_value: number;
+  weighted_pipeline_value: number;
+  stage_counts: Record<OpportunityStage, number>;
+  stage_values: Record<OpportunityStage, number>;
+}

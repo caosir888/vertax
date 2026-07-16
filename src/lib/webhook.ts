@@ -4,6 +4,8 @@ import crypto from "crypto";
 export type WebhookEvent =
   | "lead.created"
   | "lead.updated"
+  | "opportunity.created"
+  | "opportunity.updated"
   | "content.published"
   | "team.member_added";
 

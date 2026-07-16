@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity-logger";
 import { sendNotification } from "@/lib/notifications";
 import { fireWebhookAsync } from "@/lib/webhook";
 
-// GET /api/leads — 获取线索列表（支持筛选和搜索）
+// GET /api/opportunities — 获取商机列表
 export async function GET(request: NextRequest) {
   const user = await getSession();
   if (!user) {
@@ -13,18 +13,16 @@ export async function GET(request: NextRequest) {
   }
 
   const params = request.nextUrl.searchParams;
-  const status = params.get("status");
+  const stage = params.get("stage");
   const search = params.get("search");
-  const source = params.get("source");
 
   let query = getSupabase()
-    .from("leads")
+    .from("opportunities")
     .select("*")
     .eq("team_id", user.team_id);
 
-  if (status) query = query.eq("status", status);
-  if (source) query = query.eq("source", source);
-  if (search) query = query.or(`name.ilike.%${search}%,company.ilike.%${search}%,email.ilike.%${search}%`);
+  if (stage) query = query.eq("stage", stage);
+  if (search) query = query.or(`name.ilike.%${search}%,company.ilike.%${search}%,contact_name.ilike.%${search}%`);
 
   const { data, error } = await query.order("updated_at", { ascending: false });
 
@@ -35,7 +33,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST /api/leads — 新建线索
+// POST /api/opportunities — 创建商机
 export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) {
@@ -43,25 +41,38 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, company = "", email = "", phone = "", status = "new", source = "", notes = "", next_contact_date = null } = body;
+  const {
+    name,
+    company = "",
+    contact_name = "",
+    lead_id = null,
+    deal_value = 0,
+    probability = 10,
+    expected_close_date = null,
+    products_interested = "",
+    notes = "",
+    stage = "initial_contact",
+  } = body;
 
   if (!name?.trim()) {
-    return NextResponse.json({ error: "姓名不能为空" }, { status: 400 });
+    return NextResponse.json({ error: "商机名称不能为空" }, { status: 400 });
   }
 
   const { data, error } = await getSupabase()
-    .from("leads")
+    .from("opportunities")
     .insert({
       team_id: user.team_id,
       user_id: user.id,
       name: name.trim(),
       company,
-      email,
-      phone,
-      status,
-      source,
+      contact_name,
+      lead_id,
+      deal_value,
+      probability,
+      expected_close_date,
+      products_interested,
       notes,
-      next_contact_date,
+      stage,
     })
     .select()
     .single();
@@ -70,11 +81,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "创建线索", target: data.name });
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "创建商机", target: data.name });
 
-  sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `新线索「${data.name}」已创建`, message: `来源：${source || "手动录入"}` });
+  sendNotification({ team_id: user.team_id!, actor_id: user.id, title: `新商机「${data.name}」已创建`, message: `金额：¥${Number(data.deal_value).toLocaleString()}` });
 
-  fireWebhookAsync(user.team_id!, "lead.created", { id: data.id, name: data.name, company, email, status, source });
+  fireWebhookAsync(user.team_id!, "opportunity.created", { id: data.id, name: data.name, stage: data.stage, deal_value: data.deal_value });
 
   return NextResponse.json({ data }, { status: 201 });
 }

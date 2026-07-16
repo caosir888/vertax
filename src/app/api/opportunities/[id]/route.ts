@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-logger";
 import { fireWebhookAsync } from "@/lib/webhook";
 
-// GET /api/leads/[id] — 获取单条线索
+// GET /api/opportunities/[id]
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,20 +17,20 @@ export async function GET(
   const { id } = await params;
 
   const { data, error } = await getSupabase()
-    .from("leads")
+    .from("opportunities")
     .select("*")
     .eq("id", id)
     .eq("team_id", user.team_id)
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+    return NextResponse.json({ error: "商机不存在" }, { status: 404 });
   }
 
   return NextResponse.json({ data });
 }
 
-// PATCH /api/leads/[id] — 更新线索
+// PATCH /api/opportunities/[id]
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -46,12 +46,13 @@ export async function PATCH(
 
   if (body.name !== undefined) updates.name = body.name;
   if (body.company !== undefined) updates.company = body.company;
-  if (body.email !== undefined) updates.email = body.email;
-  if (body.phone !== undefined) updates.phone = body.phone;
-  if (body.status !== undefined) updates.status = body.status;
-  if (body.source !== undefined) updates.source = body.source;
+  if (body.contact_name !== undefined) updates.contact_name = body.contact_name;
+  if (body.stage !== undefined) updates.stage = body.stage;
+  if (body.deal_value !== undefined) updates.deal_value = body.deal_value;
+  if (body.probability !== undefined) updates.probability = body.probability;
+  if (body.expected_close_date !== undefined) updates.expected_close_date = body.expected_close_date;
+  if (body.products_interested !== undefined) updates.products_interested = body.products_interested;
   if (body.notes !== undefined) updates.notes = body.notes;
-  if (body.next_contact_date !== undefined) updates.next_contact_date = body.next_contact_date;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "没有要更新的字段" }, { status: 400 });
@@ -60,7 +61,7 @@ export async function PATCH(
   updates.updated_at = new Date().toISOString();
 
   const { data, error } = await getSupabase()
-    .from("leads")
+    .from("opportunities")
     .update(updates)
     .eq("id", id)
     .eq("team_id", user.team_id)
@@ -71,14 +72,14 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "更新线索", target: data.name || id });
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "更新商机", target: data.name || id });
 
-  fireWebhookAsync(user.team_id!, "lead.updated", { id: data.id, name: data.name, status: data.status, company: data.company });
+  fireWebhookAsync(user.team_id!, "opportunity.updated", { id: data.id, name: data.name, stage: data.stage, deal_value: data.deal_value });
 
   return NextResponse.json({ data });
 }
 
-// DELETE /api/leads/[id] — 删除线索
+// DELETE /api/opportunities/[id]
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -91,7 +92,7 @@ export async function DELETE(
   const { id } = await params;
 
   const { error } = await getSupabase()
-    .from("leads")
+    .from("opportunities")
     .delete()
     .eq("id", id)
     .eq("team_id", user.team_id);
@@ -100,7 +101,7 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "删除线索", target: id });
+  logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "删除商机", target: id });
 
   return NextResponse.json({ data: "ok" });
 }

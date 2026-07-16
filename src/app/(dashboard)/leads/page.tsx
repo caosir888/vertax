@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
@@ -21,6 +22,7 @@ interface Lead {
   status: string;
   source: string;
   notes: string;
+  next_contact_date?: string;
   created_at: string;
   updated_at: string;
 }
@@ -76,7 +78,7 @@ export default function LeadsPage() {
   // 新建/编辑弹窗
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
-  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", source: "", notes: "" });
+  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", source: "", notes: "", next_contact_date: "" });
   const [saving, setSaving] = useState(false);
 
   // 导入
@@ -166,7 +168,7 @@ export default function LeadsPage() {
   function openCreate() {
     setEditLead(null);
     setProfileResult(null);
-    setForm({ name: "", company: "", email: "", phone: "", source: "", notes: "" });
+    setForm({ name: "", company: "", email: "", phone: "", source: "", notes: "", next_contact_date: "" });
     setDialogOpen(true);
   }
 
@@ -185,6 +187,7 @@ export default function LeadsPage() {
       phone: lead.phone,
       source: lead.source,
       notes: lead.notes,
+      next_contact_date: lead.next_contact_date || "",
     });
     setDialogOpen(true);
   }
@@ -440,6 +443,13 @@ export default function LeadsPage() {
                           >
                             删除
                           </button>
+                          <Link
+                            href={`/opportunities?lead_id=${lead.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-emerald-600 hover:text-emerald-800 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            转商机
+                          </Link>
                         </div>
                       </div>
                     ))}
@@ -519,6 +529,15 @@ export default function LeadsPage() {
                   rows={3}
                   placeholder="跟进记录或备注"
                   className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">下次联系日期</label>
+                <input
+                  type="date"
+                  value={form.next_contact_date}
+                  onChange={(e) => setForm({ ...form, next_contact_date: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
                 />
               </div>
             </div>

@@ -114,6 +114,7 @@ export default function ICPPage() {
     { href: "/radar", label: "总览", active: false },
     { href: "/radar/icp", label: "目标客户画像", active: true },
     { href: "/radar/discover", label: "新发现", active: false },
+    { href: "/radar/outreach", label: "外联工作台", active: false },
     { href: "/leads", label: "线索库", active: false },
   ];
 
