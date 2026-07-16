@@ -6,6 +6,13 @@ import { toast } from "sonner";
 
 interface OutlineItem { id: number; text: string; }
 
+interface GeoData {
+  faq_schema?: { mainEntity?: Array<{ name: string; acceptedAnswer: { text: string } }> };
+  article_schema?: { headline?: string; description?: string };
+  geo_summary?: string;
+  geo_title?: string;
+}
+
 interface ContentData {
   id: string;
   title: string;
@@ -19,6 +26,7 @@ interface ContentData {
   tags: string[];
   language: string;
   publish_date: string | null;
+  geo_data?: GeoData | null;
 }
 
 export default function ContentEditorPage() {
@@ -41,6 +49,7 @@ export default function ContentEditorPage() {
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [status, setStatus] = useState("draft");
   const [publishDate, setPublishDate] = useState("");
+  const [geoData, setGeoData] = useState<GeoData | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -58,6 +67,7 @@ export default function ContentEditorPage() {
         setOutline(json.data.outline || []);
         setStatus(json.data.status || "draft");
         setPublishDate(json.data.publish_date ? json.data.publish_date.substring(0, 16) : "");
+        setGeoData(json.data.geo_data || null);
       }
     } catch { toast.error("加载内容失败"); }
     finally { setLoading(false); }
@@ -287,6 +297,52 @@ export default function ContentEditorPage() {
           </div>
         </div>
       </div>
+
+      {/* GEO 结构化数据 */}
+      {geoData && (geoData.faq_schema || geoData.article_schema || geoData.geo_summary) ? (
+        <div className="rounded-xl border border-green-200 bg-green-50/50 p-5 mb-6">
+          <h3 className="text-sm font-bold text-green-800 mb-4">
+            GEO 结构化数据 <span className="text-xs text-green-600 ml-1 font-normal">已发布 · AI 搜索引擎可索引</span>
+          </h3>
+
+          {geoData.faq_schema?.mainEntity && geoData.faq_schema.mainEntity.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-zinc-600 mb-2">FAQ JSON-LD Schema</p>
+              <div className="space-y-2">
+                {geoData.faq_schema.mainEntity.map((faq, i) => (
+                  <details key={i} className="rounded-lg border border-green-100 bg-white p-3">
+                    <summary className="text-sm font-medium text-zinc-800 cursor-pointer">{faq.name}</summary>
+                    <p className="text-sm text-zinc-600 mt-2 leading-relaxed">{faq.acceptedAnswer?.text}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {geoData.article_schema && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-zinc-600 mb-2">Article JSON-LD Schema</p>
+              <pre className="rounded-lg border border-green-100 bg-white p-3 text-xs text-zinc-700 overflow-x-auto">
+                {JSON.stringify(geoData.article_schema, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {geoData.geo_summary && (
+            <div>
+              <p className="text-xs font-semibold text-zinc-600 mb-2">GEO 引文摘要</p>
+              <p className="text-sm text-zinc-700 leading-relaxed rounded-lg border border-green-100 bg-white p-3">{geoData.geo_summary}</p>
+            </div>
+          )}
+
+          <details className="mt-3">
+            <summary className="text-xs text-zinc-400 cursor-pointer hover:text-zinc-600">查看完整 JSON-LD</summary>
+            <pre className="mt-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-600 overflow-x-auto max-h-64">
+              {JSON.stringify(geoData, null, 2)}
+            </pre>
+          </details>
+        </div>
+      ) : null}
 
       {/* 状态 + 操作 */}
       <div className="flex items-center justify-between">

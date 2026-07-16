@@ -1136,6 +1136,7 @@ export default function GrowthPage() {
   const [geoSearch, setGeoSearch] = useState("");
   const [geoGenerating, setGeoGenerating] = useState(false);
   const [geoOptimizing, setGeoOptimizing] = useState<string | null>(null);
+  const [geoPublishing, setGeoPublishing] = useState<string | null>(null);
   const [geoContentSelect, setGeoContentSelect] = useState("");
   const [availableContents, setAvailableContents] = useState<{ id: string; title: string; slug: string }[]>([]);
 
@@ -1192,6 +1193,21 @@ export default function GrowthPage() {
       else { toast.error(json.error || "失败"); }
     } catch { toast.error("优化失败"); }
     finally { setGeoOptimizing(null); }
+  };
+
+  const handlePublishGeo = async (geoId: string) => {
+    setGeoPublishing(geoId);
+    try {
+      const res = await fetch("/api/growth/geo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "publish-geo", id: geoId }),
+      });
+      const json = await res.json();
+      if (json.data) { toast.success("已发布 — 结构化数据已注入源内容"); loadGeoVersions(); }
+      else { toast.error(json.error || "发布失败"); }
+    } catch { toast.error("发布失败"); }
+    finally { setGeoPublishing(null); }
   };
 
   const handleCopyGeo = async (text: string) => {
@@ -1612,6 +1628,17 @@ export default function GrowthPage() {
                       >
                         {geoOptimizing === v.id ? "优化中..." : "AI 重新优化"}
                       </button>
+                      {v.status !== "published" ? (
+                        <button
+                          onClick={() => handlePublishGeo(v.id)}
+                          disabled={geoPublishing === v.id}
+                          className="text-xs bg-green-600 text-white px-3 py-1 rounded font-medium hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {geoPublishing === v.id ? "发布中..." : "发布 → 注入结构化数据"}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-green-600 font-medium">✓ 已发布</span>
+                      )}
                       <a
                         href={`/contents/${v.source_content_id || v.content_id}`}
                         target="_blank"

@@ -181,6 +181,78 @@ ${body_text.substring(0, 2000)}
     }
   }
 
+  if (action === "publish-geo") {
+    const geoId = body.id;
+    const { data: geo } = await db.from("geo_versions")
+      .select("*, contents!source_content_id(title, content, tags)")
+      .eq("id", geoId).eq("team_id", user.team_id).single();
+    if (!geo) return NextResponse.json({ error: "GEO 版本不存在" }, { status: 404 });
+
+    const src = geo.contents as Record<string, unknown> | null;
+    const srcTitle = (src?.title as string) || (geo.title as string) || "";
+    const srcContent = typeof src?.content === "string" ? (src.content as string).substring(0, 2000) : "";
+
+    const prompt = `你是一个结构化数据专家。请为以下内容生成 SEO 结构化数据（JSON-LD 格式）。
+
+标题: ${srcTitle}
+GEO 摘要: ${geo.geo_summary || ""}
+内容片段: ${srcContent}
+
+请以 JSON 格式返回（只返回 JSON）：
+{
+  "faq_schema": {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "与产品/服务相关的问题", "acceptedAnswer": { "@type": "Answer", "text": "详细回答" } }
+    ]
+  },
+  "article_schema": {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "文章标题",
+    "description": "GEO 摘要",
+    "author": { "@type": "Organization", "name": "VertaX" }
+  },
+  "geo_summary": "${geo.geo_summary || ""}",
+  "geo_title": "${geo.geo_title || srcTitle}"
+}
+
+要求：
+- faq_schema 包含 3-5 个常见问题，英文
+- article_schema 的 description 使用 GEO 摘要
+- 所有内容符合 schema.org 规范`;
+
+    try {
+      const response = await chat([
+        { role: "system", content: "你是 JSON-LD 结构化数据专家。只返回 JSON。" },
+        { role: "user", content: prompt },
+      ]);
+      const cleaned = response.replace(/```json\n?|\n?```/g, "").trim();
+      const geoData = JSON.parse(cleaned);
+
+      // 写入源内容的 geo_data 字段
+      const sourceContentId = geo.source_content_id as string;
+      const { error: updateErr } = await db.from("contents")
+        .update({ geo_data: geoData, updated_at: new Date().toISOString() })
+        .eq("id", sourceContentId);
+
+      if (updateErr) return NextResponse.json({ error: "写入结构化数据失败: " + updateErr.message }, { status: 500 });
+
+      // 更新 GEO 状态为 published
+      await db.from("geo_versions").update({
+        status: "published",
+        updated_at: new Date().toISOString(),
+      }).eq("id", geoId);
+
+      logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "geo_publish", target: geoId, details: srcTitle });
+
+      return NextResponse.json({ data: { ...geo, status: "published", geo_data: geoData } });
+    } catch (err: unknown) {
+      return NextResponse.json({ error: "发布失败: " + (err instanceof Error ? err.message : "") }, { status: 500 });
+    }
+  }
+
   return NextResponse.json({ error: "无效操作" }, { status: 400 });
 }
 
