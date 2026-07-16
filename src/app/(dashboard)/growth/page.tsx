@@ -38,6 +38,8 @@ interface ContentBrief {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  cluster_name?: string;
+  pillar_name?: string;
 }
 
 interface Evidence {
@@ -881,6 +883,520 @@ export default function GrowthPage() {
     );
   }
 
+  /* ========== 内容简报状态 ========== */
+
+  const [allBriefs, setAllBriefs] = useState<ContentBrief[]>([]);
+  const [briefsLoading, setBriefsLoading] = useState(false);
+  const [briefsTotal, setBriefsTotal] = useState(0);
+  const [briefsFilter, setBriefsFilter] = useState<{ status: string; funnel: string; search: string }>({ status: "", funnel: "", search: "" });
+
+  const loadAllBriefs = useCallback(async () => {
+    setBriefsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (briefsFilter.status) params.set("status", briefsFilter.status);
+      if (briefsFilter.funnel) params.set("funnel", briefsFilter.funnel);
+      if (briefsFilter.search) params.set("search", briefsFilter.search);
+      const res = await fetch(`/api/growth/briefs?${params}`);
+      const json = await res.json();
+      if (json.data) { setAllBriefs(json.data); setBriefsTotal(json.total || json.data.length); }
+    } catch { toast.error("加载简报失败"); }
+    finally { setBriefsLoading(false); }
+  }, [briefsFilter]);
+
+  useEffect(() => {
+    if (activeTab === "briefs") loadAllBriefs();
+  }, [activeTab, loadAllBriefs]);
+
+  /* ========== 发布策略状态 ========== */
+
+  interface Schedule {
+    id: string; title: string; channel: string; scheduled_date: string | null;
+    status: string; notes: string; brief_id: string | null; published_at: string | null;
+  }
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({ title: "", channel: "", scheduled_date: "", notes: "" });
+
+  const loadSchedules = useCallback(async () => {
+    setSchedulesLoading(true);
+    try {
+      const res = await fetch("/api/growth/schedules");
+      const json = await res.json();
+      if (json.data) setSchedules(json.data);
+    } catch { toast.error("加载排期失败"); }
+    finally { setSchedulesLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "publish") loadSchedules();
+  }, [activeTab, loadSchedules]);
+
+  const handleCreateSchedule = async () => {
+    if (!scheduleForm.title.trim()) return toast.error("请输入内容标题");
+    try {
+      const res = await fetch("/api/growth/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(scheduleForm),
+      });
+      const json = await res.json();
+      if (json.data) {
+        toast.success("排期已创建");
+        setShowScheduleForm(false);
+        setScheduleForm({ title: "", channel: "", scheduled_date: "", notes: "" });
+        loadSchedules();
+      } else { toast.error(json.error || "创建失败"); }
+    } catch { toast.error("创建失败"); }
+  };
+
+  const handleUpdateSchedule = async (id: string, updates: Record<string, unknown>) => {
+    try {
+      const res = await fetch("/api/growth/schedules", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      const json = await res.json();
+      if (json.data) { toast.success("已更新"); loadSchedules(); }
+      else { toast.error(json.error || "更新失败"); }
+    } catch { toast.error("更新失败"); }
+  };
+
+  /* ========== GEO 状态 ========== */
+
+  interface GeoVersion {
+    id: string; brief_id: string | null; content_id: string | null;
+    language: string; region: string; title: string; content: string;
+    status: string; source: string; created_at: string;
+  }
+  const [geoVersions, setGeoVersions] = useState<GeoVersion[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoTranslateForm, setGeoTranslateForm] = useState({ brief_id: "", language: "en", region: "" });
+  const [geoTranslating, setGeoTranslating] = useState(false);
+  const [expandedGeo, setExpandedGeo] = useState<string | null>(null);
+
+  const loadGeoVersions = useCallback(async () => {
+    setGeoLoading(true);
+    try {
+      const res = await fetch("/api/growth/geo");
+      const json = await res.json();
+      if (json.data) setGeoVersions(json.data);
+    } catch { toast.error("加载GEO版本失败"); }
+    finally { setGeoLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "geo") { loadGeoVersions(); loadAllBriefs(); }
+  }, [activeTab, loadGeoVersions, loadAllBriefs]);
+
+  const handleGeoTranslate = async () => {
+    if (!geoTranslateForm.brief_id) return toast.error("请选择要翻译的内容");
+    setGeoTranslating(true);
+    try {
+      const res = await fetch("/api/growth/geo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...geoTranslateForm, action: "translate" }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        toast.success(`已翻译为 ${geoTranslateForm.language}`);
+        loadGeoVersions();
+      } else { toast.error(json.error || "翻译失败"); }
+    } catch { toast.error("翻译失败"); }
+    finally { setGeoTranslating(false); }
+  };
+
+  /* ========== 渲染：内容简报 ========== */
+
+  function renderBriefs() {
+    const generatedCount = allBriefs.filter(b => b.status === "generated").length;
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-bold text-black">内容简报</h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              共 {briefsTotal} 条简报 · {generatedCount} 条已生成内容
+            </p>
+          </div>
+        </div>
+
+        {/* 统计卡片 */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {[
+            ["全部", briefsTotal, "text-zinc-700", ""],
+            ["已生成", generatedCount, "text-green-700", "generated"],
+            ["草稿", briefsTotal - generatedCount, "text-amber-700", "draft"],
+            ["TOFU", allBriefs.filter(b => b.funnel_stage === "TOFU").length, "text-blue-700", ""],
+          ].map(([label, count, color, status]) => (
+            <button
+              key={label as string}
+              onClick={() => setBriefsFilter(prev => ({ ...prev, status: (status as string) === briefsFilter.status ? "" : status as string }))}
+              className={`rounded-xl border p-4 text-left transition-colors ${(status as string) && briefsFilter.status === status ? "border-black bg-zinc-50" : "border-zinc-200 bg-white hover:border-zinc-300"}`}
+            >
+              <p className="text-xs text-zinc-400 mb-1">{label as string}</p>
+              <p className={`text-2xl font-bold ${color}`}>{count as number}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* 筛选栏 */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <input
+            type="text" value={briefsFilter.search} onChange={(e) => setBriefsFilter(prev => ({ ...prev, search: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === "Enter") loadAllBriefs(); }}
+            placeholder="搜索标题、描述..." className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-56"
+          />
+          <select value={briefsFilter.funnel} onChange={(e) => setBriefsFilter(prev => ({ ...prev, funnel: e.target.value }))} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none">
+            <option value="">全部漏斗</option>
+            <option value="TOFU">TOFU 上层</option>
+            <option value="MOFU">MOFU 中层</option>
+            <option value="BOFU">BOFU 下层</option>
+          </select>
+          <select value={briefsFilter.status} onChange={(e) => setBriefsFilter(prev => ({ ...prev, status: e.target.value }))} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none">
+            <option value="">全部状态</option>
+            <option value="draft">草稿</option>
+            <option value="generated">已生成</option>
+          </select>
+          <button onClick={loadAllBriefs} className="rounded-lg bg-black px-3 py-1.5 text-xs text-white hover:bg-zinc-800">
+            筛选
+          </button>
+        </div>
+
+        {/* 简报列表 */}
+        {briefsLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+        ) : allBriefs.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
+            <p className="text-sm text-zinc-400">暂无内容简报</p>
+            <p className="text-xs text-zinc-300 mt-1">在「主题集群」中创建集群并生成简报</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {allBriefs.map((brief) => {
+              const fColors = FUNNEL_COLORS[brief.funnel_stage] || FUNNEL_COLORS.TOFU;
+              return (
+                <div key={brief.id} className={`rounded-xl border ${fColors.border} bg-white p-4 hover:shadow-sm transition-shadow`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${fColors.text} ${fColors.bg}`}>{brief.funnel_stage}</span>
+                        <span className="text-sm font-semibold text-black truncate">{brief.title}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${brief.status === "generated" ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
+                          {brief.status === "generated" ? "已生成" : "草稿"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500 line-clamp-1 mb-1.5">{brief.description}</p>
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-400 flex-wrap">
+                        <span>{CONTENT_TYPE_LABELS[brief.content_type] || brief.content_type}</span>
+                        <span>·</span>
+                        <span>{brief.target_persona}</span>
+                        <span>·</span>
+                        <span>{brief.cluster_name || brief.pillar_name}</span>
+                        <span>·</span>
+                        <span>{brief.primary_channel}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3 shrink-0">
+                      {brief.status === "generated" ? (
+                        <button onClick={() => setViewContent({ title: brief.title, content: brief.generated_content })} className="text-xs text-green-700 font-medium hover:underline whitespace-nowrap">
+                          查看内容
+                        </button>
+                      ) : (
+                        <button onClick={() => handleGenerateContent(brief.id)} disabled={generatingContent === brief.id} className="text-xs bg-zinc-900 text-white px-2.5 py-1 rounded hover:bg-zinc-800 disabled:opacity-50 whitespace-nowrap">
+                          {generatingContent === brief.id ? "生成中..." : "生成内容"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ========== 渲染：内容库 ========== */
+
+  function renderContentLib() {
+    const generated = allBriefs.filter(b => b.status === "generated" && b.generated_content);
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-bold text-black">内容库</h2>
+            <p className="text-sm text-zinc-500 mt-1">浏览和管理已生成的AI内容资产</p>
+          </div>
+          <button onClick={loadAllBriefs} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50">
+            刷新
+          </button>
+        </div>
+
+        {briefsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-xl bg-zinc-100 animate-pulse" />)}
+          </div>
+        ) : generated.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
+            <p className="text-sm text-zinc-400">暂无已生成的内容</p>
+            <p className="text-xs text-zinc-300 mt-1">在「内容简报」中为简报生成内容后会自动出现在这里</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {generated.map((brief) => {
+              const fColors = FUNNEL_COLORS[brief.funnel_stage] || FUNNEL_COLORS.TOFU;
+              const wordCount = brief.generated_content?.length || 0;
+              const preview = brief.generated_content?.substring(0, 150) || "";
+              return (
+                <div key={brief.id} className="rounded-xl border border-zinc-200 bg-white hover:shadow-md transition-shadow overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${fColors.text} ${fColors.bg}`}>{brief.funnel_stage}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">{CONTENT_TYPE_LABELS[brief.content_type] || brief.content_type}</span>
+                    </div>
+                    <h3 className="font-semibold text-black mb-1 line-clamp-1">{brief.title}</h3>
+                    <p className="text-xs text-zinc-500 line-clamp-2 mb-3">{preview.replace(/^#+\s*/gm, "").replace(/\*\*/g, "")}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                        <span>{wordCount.toLocaleString()} 字</span>
+                        <span>·</span>
+                        <span>{brief.target_persona}</span>
+                      </div>
+                      <button
+                        onClick={() => setViewContent({ title: brief.title, content: brief.generated_content })}
+                        className="text-xs font-medium text-black hover:underline"
+                      >
+                        阅读全文 →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ========== 渲染：发布策略 ========== */
+
+  const CHANNEL_OPTIONS = ["官网博客", "微信公众号", "知乎", "LinkedIn", "CSDN", "掘金", "InfoQ", "行业媒体投稿", "邮件营销", "社交媒体"];
+  const MONTHS = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+
+  function renderPublish() {
+    const planned = schedules.filter(s => s.status === "planned");
+    const published = schedules.filter(s => s.status === "published");
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-bold text-black">发布策略</h2>
+            <p className="text-sm text-zinc-500 mt-1">{planned.length} 条待发布 · {published.length} 条已发布</p>
+          </div>
+          <button onClick={() => setShowScheduleForm(true)} className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800">
+            + 添加排期
+          </button>
+        </div>
+
+        {/* 添加排期表单 */}
+        {showScheduleForm && (
+          <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-6">
+            <h3 className="font-semibold text-sm mb-4">新建发布排期</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <input value={scheduleForm.title} onChange={e => setScheduleForm({ ...scheduleForm, title: e.target.value })}
+                placeholder="内容标题 *" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none sm:col-span-2" />
+              <select value={scheduleForm.channel} onChange={e => setScheduleForm({ ...scheduleForm, channel: e.target.value })}
+                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none">
+                <option value="">选择发布渠道</option>
+                {CHANNEL_OPTIONS.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+              </select>
+              <input type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })}
+                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none" />
+              <input value={scheduleForm.notes} onChange={e => setScheduleForm({ ...scheduleForm, notes: e.target.value })}
+                placeholder="备注（可选）" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none sm:col-span-2" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleCreateSchedule} className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800">确认创建</button>
+              <button onClick={() => setShowScheduleForm(false)} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50">取消</button>
+            </div>
+          </div>
+        )}
+
+        {/* 排期列表 */}
+        {schedulesLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+        ) : schedules.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
+            <p className="text-sm text-zinc-400">暂无发布排期</p>
+            <p className="text-xs text-zinc-300 mt-1">点击"+ 添加排期"制定内容发布计划</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* 按月分组 */}
+            {(() => {
+              const grouped: Record<string, Schedule[]> = {};
+              schedules.forEach(s => {
+                const key = s.scheduled_date ? s.scheduled_date.substring(0, 7) : "未排期";
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(s);
+              });
+              return Object.entries(grouped).map(([month, items]) => {
+                const monthLabel = month === "未排期" ? "未排期" : (() => {
+                  const [y, m] = month.split("-");
+                  return `${y}年${MONTHS[parseInt(m) - 1]}`;
+                })();
+                return (
+                  <div key={month}>
+                    <h4 className="text-xs font-bold text-zinc-400 uppercase mb-2 ml-1">{monthLabel} · {items.length} 条</h4>
+                    <div className="space-y-1.5">
+                      {items.map(s => (
+                        <div key={s.id} className={`rounded-lg border p-3 flex items-center justify-between transition-colors ${s.status === "published" ? "border-green-200 bg-green-50/50" : "border-zinc-200 bg-white hover:border-zinc-300"}`}>
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <span className={`h-2 w-2 rounded-full shrink-0 ${s.status === "published" ? "bg-green-500" : "bg-amber-400"}`} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-black truncate">{s.title}</p>
+                              <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
+                                {s.channel && <span>{s.channel}</span>}
+                                {s.scheduled_date && <span>{new Date(s.scheduled_date).toLocaleDateString("zh-CN")}</span>}
+                                {s.notes && <span className="text-zinc-300 truncate">— {s.notes}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 ml-3 shrink-0">
+                            {s.status === "planned" && (
+                              <>
+                                <button onClick={() => handleUpdateSchedule(s.id, { status: "published", published_at: new Date().toISOString() })}
+                                  className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 whitespace-nowrap">标记发布</button>
+                                <button onClick={() => handleUpdateSchedule(s.id, { status: "cancelled" })}
+                                  className="text-xs text-zinc-400 hover:text-red-500 px-1">取消</button>
+                              </>
+                            )}
+                            {s.status === "published" && (
+                              <span className="text-xs text-green-600">{s.published_at ? new Date(s.published_at).toLocaleDateString("zh-CN") : "已发布"}</span>
+                            )}
+                            {s.status === "cancelled" && (
+                              <span className="text-xs text-zinc-400 line-through">已取消</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ========== 渲染：GEO 发布中心 ========== */
+
+  const LANG_FLAGS: Record<string, string> = { en: "🇺🇸", ja: "🇯🇵", ko: "🇰🇷", de: "🇩🇪", fr: "🇫🇷", es: "🇪🇸", pt: "🇧🇷", ar: "🇸🇦", ru: "🇷🇺", "zh-TW": "🇹🇼", "zh-CN": "🇨🇳" };
+  const LANG_NAMES: Record<string, string> = { en: "英语", ja: "日语", ko: "韩语", de: "德语", fr: "法语", es: "西班牙语", pt: "葡萄牙语", ar: "阿拉伯语", ru: "俄语", "zh-TW": "繁体中文", "zh-CN": "简体中文" };
+
+  function renderGeo() {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-bold text-black">GEO 发布中心</h2>
+            <p className="text-sm text-zinc-500 mt-1">AI 多语言翻译 · 多地域内容分发 · AGEO 优化</p>
+          </div>
+        </div>
+
+        {/* 翻译表单 */}
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h3 className="font-semibold text-sm mb-3">AI 翻译内容</h3>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs text-zinc-500 mb-1 block">选择源内容（已生成简报）</label>
+              <select value={geoTranslateForm.brief_id} onChange={e => setGeoTranslateForm({ ...geoTranslateForm, brief_id: e.target.value })}
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none">
+                <option value="">请选择...</option>
+                {allBriefs.filter(b => b.status === "generated" && b.generated_content).map(b => (
+                  <option key={b.id} value={b.id}>{b.title} ({b.cluster_name || b.pillar_name})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500 mb-1 block">目标语言</label>
+              <select value={geoTranslateForm.language} onChange={e => setGeoTranslateForm({ ...geoTranslateForm, language: e.target.value })}
+                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none">
+                {Object.entries(LANG_NAMES).filter(([k]) => k !== "zh-CN").map(([k, v]) => (
+                  <option key={k} value={k}>{LANG_FLAGS[k]} {v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500 mb-1 block">目标地区</label>
+              <input value={geoTranslateForm.region} onChange={e => setGeoTranslateForm({ ...geoTranslateForm, region: e.target.value })}
+                placeholder="如：北美、欧洲" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm w-32 focus:border-black focus:outline-none" />
+            </div>
+            <button onClick={handleGeoTranslate} disabled={geoTranslating}
+              className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 h-[38px]">
+              {geoTranslating ? "AI 翻译中..." : "开始翻译"}
+            </button>
+            <button onClick={loadAllBriefs} className="text-xs text-zinc-400 hover:text-black h-[38px]">刷新列表</button>
+          </div>
+        </div>
+
+        {/* GEO 版本列表 */}
+        {geoLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+        ) : geoVersions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
+            <p className="text-sm text-zinc-400">暂无 GEO 多语言版本</p>
+            <p className="text-xs text-zinc-300 mt-1">选择已生成的内容，AI 自动翻译为多语言版本</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-medium text-zinc-400">
+              <span className="col-span-2">语言</span>
+              <span className="col-span-5">标题</span>
+              <span className="col-span-1">状态</span>
+              <span className="col-span-2">来源</span>
+              <span className="col-span-2">时间</span>
+            </div>
+            {geoVersions.map(v => {
+              const isExpanded = expandedGeo === v.id;
+              return (
+                <div key={v.id}>
+                  <div onClick={() => setExpandedGeo(isExpanded ? null : v.id)}
+                    className="grid grid-cols-12 gap-2 px-4 py-3 rounded-xl border border-zinc-100 bg-white hover:border-zinc-200 cursor-pointer transition-colors items-center">
+                    <span className="col-span-2 text-sm">{LANG_FLAGS[v.language] || "🌐"} {LANG_NAMES[v.language] || v.language}{v.region ? ` (${v.region})` : ""}</span>
+                    <span className="col-span-5 text-sm font-medium text-black truncate">{v.title}</span>
+                    <span className="col-span-1">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${v.status === "published" ? "bg-green-100 text-green-700" : v.status === "translated" ? "bg-blue-100 text-blue-700" : "bg-zinc-100 text-zinc-500"}`}>
+                        {v.status === "published" ? "published" : v.status === "translated" ? "translated" : "draft"}
+                      </span>
+                    </span>
+                    <span className="col-span-2 text-xs text-zinc-400">{v.source === "ai" ? "AI 翻译" : "手动"}</span>
+                    <span className="col-span-2 text-xs text-zinc-400">{new Date(v.created_at).toLocaleDateString("zh-CN")}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="mx-2 mb-2 rounded-b-xl border border-t-0 border-zinc-200 bg-zinc-50 p-4">
+                      <div className="prose prose-sm max-w-none text-zinc-700 whitespace-pre-wrap text-xs leading-relaxed max-h-60 overflow-y-auto">
+                        {v.content || "（无内容）"}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   /* ========== 占位视图 ========== */
 
   function renderPlaceholder(title: string, desc: string) {
@@ -936,11 +1452,11 @@ export default function GrowthPage() {
       {/* 右侧内容区 */}
       <div className="flex-1 px-6 py-8 overflow-y-auto">
         {activeTab === "clusters" && renderClusters()}
-        {activeTab === "briefs" && renderPlaceholder("内容简报", "查看和管理所有内容简报")}
-        {activeTab === "content_lib" && renderPlaceholder("内容库", "浏览和管理已生成的内容资产")}
-        {activeTab === "publish" && renderPlaceholder("发布策略", "制定内容发布计划和渠道策略")}
+        {activeTab === "briefs" && renderBriefs()}
+        {activeTab === "content_lib" && renderContentLib()}
+        {activeTab === "publish" && renderPublish()}
         {activeTab === "seo" && renderSEO()}
-        {activeTab === "geo" && renderPlaceholder("GEO 发布中心", "多语言/多地域内容分发")}
+        {activeTab === "geo" && renderGeo()}
       </div>
     </div>
   );
