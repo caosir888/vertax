@@ -1120,46 +1120,85 @@ export default function GrowthPage() {
   /* ========== GEO 状态 ========== */
 
   interface GeoVersion {
-    id: string; brief_id: string | null; content_id: string | null;
-    language: string; region: string; title: string; content: string;
+    id: string; source_content_id: string | null; content_id: string | null;
+    language: string; title: string; content: string; geo_title: string;
+    geo_summary: string; framework: string; word_count: number;
+    source_type: string; source_title?: string; source_slug?: string;
+    source_word_count?: number; engine_tracking: EngineTracking[];
     status: string; source: string; created_at: string;
   }
+  interface EngineTracking { engine: string; label: string; status: string; checked_at: string; }
+  interface GeoStats { total: number; avgWords: number; cited: number; channels: number; }
+
   const [geoVersions, setGeoVersions] = useState<GeoVersion[]>([]);
+  const [geoStats, setGeoStats] = useState<GeoStats | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
-  const [geoTranslateForm, setGeoTranslateForm] = useState({ brief_id: "", language: "en", region: "" });
-  const [geoTranslating, setGeoTranslating] = useState(false);
-  const [expandedGeo, setExpandedGeo] = useState<string | null>(null);
+  const [geoSearch, setGeoSearch] = useState("");
+  const [geoGenerating, setGeoGenerating] = useState(false);
+  const [geoOptimizing, setGeoOptimizing] = useState<string | null>(null);
+  const [geoContentSelect, setGeoContentSelect] = useState("");
+  const [availableContents, setAvailableContents] = useState<{ id: string; title: string; slug: string }[]>([]);
 
   const loadGeoVersions = useCallback(async () => {
     setGeoLoading(true);
     try {
-      const res = await fetch("/api/growth/geo");
+      const params = new URLSearchParams();
+      if (geoSearch) params.set("search", geoSearch);
+      const res = await fetch(`/api/growth/geo?${params}`);
       const json = await res.json();
-      if (json.data) setGeoVersions(json.data);
-    } catch { toast.error("加载GEO版本失败"); }
+      if (json.data) { setGeoVersions(json.data.items); setGeoStats(json.data.stats); }
+    } catch { toast.error("加载GEO失败"); }
     finally { setGeoLoading(false); }
-  }, []);
+  }, [geoSearch]);
 
   useEffect(() => {
-    if (activeTab === "geo") { loadGeoVersions(); loadAllBriefs(); }
-  }, [activeTab, loadGeoVersions, loadAllBriefs]);
+    if (activeTab === "geo") { loadGeoVersions(); loadAvailableContents(); }
+  }, [activeTab, loadGeoVersions]);
 
-  const handleGeoTranslate = async () => {
-    if (!geoTranslateForm.brief_id) return toast.error("请选择要翻译的内容");
-    setGeoTranslating(true);
+  const loadAvailableContents = async () => {
+    try {
+      const res = await fetch("/api/contents");
+      const json = await res.json();
+      if (json.data) setAvailableContents(json.data.filter((c: { status: string }) => c.status === "published" || c.status === "review"));
+    } catch { /* silent */ }
+  };
+
+  const handleGenerateGeo = async () => {
+    if (!geoContentSelect) return toast.error("请选择源内容");
+    setGeoGenerating(true);
     try {
       const res = await fetch("/api/growth/geo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...geoTranslateForm, action: "translate" }),
+        body: JSON.stringify({ action: "generate-geo", content_id: geoContentSelect }),
       });
       const json = await res.json();
-      if (json.data) {
-        toast.success(`已翻译为 ${geoTranslateForm.language}`);
-        loadGeoVersions();
-      } else { toast.error(json.error || "翻译失败"); }
-    } catch { toast.error("翻译失败"); }
-    finally { setGeoTranslating(false); }
+      if (json.data) { toast.success("GEO 优化版本已生成"); loadGeoVersions(); }
+      else { toast.error(json.error || "生成失败"); }
+    } catch { toast.error("生成失败"); }
+    finally { setGeoGenerating(false); }
+  };
+
+  const handleReoptimize = async (geoId: string) => {
+    setGeoOptimizing(geoId);
+    try {
+      const res = await fetch("/api/growth/geo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reoptimize", id: geoId }),
+      });
+      const json = await res.json();
+      if (json.data) { toast.success("已重新优化"); loadGeoVersions(); }
+      else { toast.error(json.error || "失败"); }
+    } catch { toast.error("优化失败"); }
+    finally { setGeoOptimizing(null); }
+  };
+
+  const handleCopyGeo = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("已复制到剪贴板");
+    } catch { toast.error("复制失败"); }
   };
 
   /* ========== 渲染：内容简报 ========== */
@@ -1452,8 +1491,8 @@ export default function GrowthPage() {
 
   /* ========== 渲染：GEO 发布中心 ========== */
 
-  const LANG_FLAGS: Record<string, string> = { en: "🇺🇸", ja: "🇯🇵", ko: "🇰🇷", de: "🇩🇪", fr: "🇫🇷", es: "🇪🇸", pt: "🇧🇷", ar: "🇸🇦", ru: "🇷🇺", "zh-TW": "🇹🇼", "zh-CN": "🇨🇳" };
-  const LANG_NAMES: Record<string, string> = { en: "英语", ja: "日语", ko: "韩语", de: "德语", fr: "法语", es: "西班牙语", pt: "葡萄牙语", ar: "阿拉伯语", ru: "俄语", "zh-TW": "繁体中文", "zh-CN": "简体中文" };
+  const ENGINE_ICONS: Record<string, string> = { chatgpt: "G", gemini: "Ge", claude: "C", perplexity: "P", bing: "B" };
+  const ENGINE_COLORS: Record<string, string> = { chatgpt: "bg-green-100 text-green-700", gemini: "bg-blue-100 text-blue-700", claude: "bg-amber-100 text-amber-700", perplexity: "bg-purple-100 text-purple-700", bing: "bg-cyan-100 text-cyan-700" };
 
   function renderGeo() {
     return (
@@ -1461,89 +1500,158 @@ export default function GrowthPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-lg font-bold text-black">GEO 发布中心</h2>
-            <p className="text-sm text-zinc-500 mt-1">AI 多语言翻译 · 多地域内容分发 · AGEO 优化</p>
+            <p className="text-sm text-zinc-500 mt-1">AI 引擎优化版本 · 分发至 ChatGPT / Perplexity / Claude 的可引用内容</p>
           </div>
+          <button
+            onClick={handleGenerateGeo}
+            disabled={geoGenerating}
+            className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {geoGenerating ? "生成中..." : "生成新 GEO 内容"}
+          </button>
         </div>
 
-        {/* 翻译表单 */}
-        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-5">
-          <h3 className="font-semibold text-sm mb-3">AI 翻译内容</h3>
-          <div className="flex items-end gap-3 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-xs text-zinc-500 mb-1 block">选择源内容（已生成简报）</label>
-              <select value={geoTranslateForm.brief_id} onChange={e => setGeoTranslateForm({ ...geoTranslateForm, brief_id: e.target.value })}
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none">
-                <option value="">请选择...</option>
-                {allBriefs.filter(b => b.status === "generated" && b.generated_content).map(b => (
-                  <option key={b.id} value={b.id}>{b.title} ({b.cluster_name || b.pillar_name})</option>
-                ))}
-              </select>
+        {/* 统计卡片 */}
+        {geoStats && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">GEO 版本总数</p>
+              <p className="text-2xl font-bold">{geoStats.total}</p>
             </div>
-            <div>
-              <label className="text-xs text-zinc-500 mb-1 block">目标语言</label>
-              <select value={geoTranslateForm.language} onChange={e => setGeoTranslateForm({ ...geoTranslateForm, language: e.target.value })}
-                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none">
-                {Object.entries(LANG_NAMES).filter(([k]) => k !== "zh-CN").map(([k, v]) => (
-                  <option key={k} value={k}>{LANG_FLAGS[k]} {v}</option>
-                ))}
-              </select>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">平均 GEO 字数</p>
+              <p className="text-2xl font-bold">{geoStats.avgWords}</p>
             </div>
-            <div>
-              <label className="text-xs text-zinc-500 mb-1 block">目标地区</label>
-              <input value={geoTranslateForm.region} onChange={e => setGeoTranslateForm({ ...geoTranslateForm, region: e.target.value })}
-                placeholder="如：北美、欧洲" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm w-32 focus:border-black focus:outline-none" />
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">AI 引擎已引用</p>
+              <p className={`text-2xl font-bold ${geoStats.cited > 0 ? "text-green-600" : "text-zinc-400"}`}>{geoStats.cited}</p>
             </div>
-            <button onClick={handleGeoTranslate} disabled={geoTranslating}
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 h-[38px]">
-              {geoTranslating ? "AI 翻译中..." : "开始翻译"}
-            </button>
-            <button onClick={loadAllBriefs} className="text-xs text-zinc-400 hover:text-black h-[38px]">刷新列表</button>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">分发渠道注册</p>
+              <p className="text-2xl font-bold text-blue-600">{geoStats.channels}</p>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <p className="text-xs text-zinc-400 mb-1">待引用引擎</p>
+              <p className="text-2xl font-bold text-amber-600">{geoStats.total * 5 - geoStats.cited}</p>
+            </div>
           </div>
+        )}
+
+        {/* 搜索 + 源内容选择 */}
+        <div className="flex items-center gap-3 mb-6">
+          <input
+            type="text" value={geoSearch} onChange={(e) => setGeoSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") loadGeoVersions(); }}
+            placeholder="搜索标题、Slug 或关键词..."
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-64"
+          />
+          <select value={geoContentSelect} onChange={(e) => setGeoContentSelect(e.target.value)}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none flex-1 max-w-xs">
+            <option value="">选择源内容...</option>
+            {availableContents.map(c => (
+              <option key={c.id} value={c.id}>{c.title?.substring(0, 40)}{(c.title?.length || 0) > 40 ? "..." : ""}</option>
+            ))}
+          </select>
         </div>
 
-        {/* GEO 版本列表 */}
+        {/* GEO 内容卡片列表 */}
         {geoLoading ? (
-          <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+          <div className="space-y-4">{[1, 2].map(i => <div key={i} className="h-48 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
         ) : geoVersions.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
-            <p className="text-sm text-zinc-400">暂无 GEO 多语言版本</p>
-            <p className="text-xs text-zinc-300 mt-1">选择已生成的内容，AI 自动翻译为多语言版本</p>
+            <p className="text-sm text-zinc-400">暂无 GEO 优化内容</p>
+            <p className="text-xs text-zinc-300 mt-1">选择源内容后点击"生成新 GEO 内容"，AI 将生成可被 ChatGPT/Claude 等引擎引用的优化版本</p>
           </div>
         ) : (
-          <div className="space-y-1">
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-medium text-zinc-400">
-              <span className="col-span-2">语言</span>
-              <span className="col-span-5">标题</span>
-              <span className="col-span-1">状态</span>
-              <span className="col-span-2">来源</span>
-              <span className="col-span-2">时间</span>
-            </div>
-            {geoVersions.map(v => {
-              const isExpanded = expandedGeo === v.id;
-              return (
-                <div key={v.id}>
-                  <div onClick={() => setExpandedGeo(isExpanded ? null : v.id)}
-                    className="grid grid-cols-12 gap-2 px-4 py-3 rounded-xl border border-zinc-100 bg-white hover:border-zinc-200 cursor-pointer transition-colors items-center">
-                    <span className="col-span-2 text-sm">{LANG_FLAGS[v.language] || "🌐"} {LANG_NAMES[v.language] || v.language}{v.region ? ` (${v.region})` : ""}</span>
-                    <span className="col-span-5 text-sm font-medium text-black truncate">{v.title}</span>
-                    <span className="col-span-1">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${v.status === "published" ? "bg-green-100 text-green-700" : v.status === "translated" ? "bg-blue-100 text-blue-700" : "bg-zinc-100 text-zinc-500"}`}>
-                        {v.status === "published" ? "published" : v.status === "translated" ? "translated" : "draft"}
-                      </span>
-                    </span>
-                    <span className="col-span-2 text-xs text-zinc-400">{v.source === "ai" ? "AI 翻译" : "手动"}</span>
-                    <span className="col-span-2 text-xs text-zinc-400">{new Date(v.created_at).toLocaleDateString("zh-CN")}</span>
-                  </div>
-                  {isExpanded && (
-                    <div className="mx-2 mb-2 rounded-b-xl border border-t-0 border-zinc-200 bg-zinc-50 p-4">
-                      <div className="prose prose-sm max-w-none text-zinc-700 whitespace-pre-wrap text-xs leading-relaxed max-h-60 overflow-y-auto">
-                        {v.content || "（无内容）"}
+          <div className="space-y-4">
+            {geoVersions.map((v) => (
+              <div key={v.id} className="rounded-xl border border-zinc-200 bg-white overflow-hidden hover:shadow-sm transition-shadow">
+                {/* 卡片头部 */}
+                <div className="p-5 border-b border-zinc-100">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold text-black">{v.source_title || v.title}</h3>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400">
+                        <span>{v.source_slug || v.title}</span>
+                        <span>·</span>
+                        <span className="font-medium text-zinc-500">{v.framework || "Framework D"}</span>
+                        <span>·</span>
+                        <span>{v.source_word_count?.toLocaleString() || v.word_count?.toLocaleString()} words (article)</span>
                       </div>
                     </div>
-                  )}
+                    <span className="text-xs text-zinc-400 shrink-0">{new Date(v.created_at).toLocaleDateString("zh-CN")}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleCopyGeo(v.geo_summary || v.content || "")}
+                      className="text-xs bg-zinc-100 text-zinc-600 px-2.5 py-1 rounded hover:bg-zinc-200"
+                    >
+                      复制
+                    </button>
+                  </div>
                 </div>
-              );
-            })}
+
+                {/* GEO 优化版本 */}
+                <div className="px-5 py-4 bg-zinc-50/50 border-b border-zinc-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold text-blue-700">GEO-Optimized Version</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">AI Citation Ready · ChatGPT / Perplexity / Claude</span>
+                  </div>
+                  <p className="text-sm text-zinc-700 leading-relaxed">
+                    {v.geo_summary || v.content || "（无内容）"}
+                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-zinc-400">
+                      {v.word_count || (v.geo_summary || v.content || "").length} words · 可粘贴至 About / FAQ / Landing Page
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleReoptimize(v.id)}
+                        disabled={geoOptimizing === v.id}
+                        className="text-xs text-blue-600 font-medium hover:underline disabled:opacity-50"
+                      >
+                        {geoOptimizing === v.id ? "优化中..." : "AI 重新优化"}
+                      </button>
+                      <a
+                        href={`/contents/${v.source_content_id || v.content_id}`}
+                        target="_blank"
+                        className="text-xs text-zinc-400 hover:text-black underline"
+                      >
+                        查看完整内容
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI 引擎分发追踪 */}
+                <div className="px-5 py-3">
+                  <p className="text-xs font-semibold text-zinc-600 mb-2">
+                    AI 引擎分发追踪
+                    <span className="ml-1 text-zinc-400 font-normal">
+                      {v.engine_tracking?.filter(e => e.status === "cited").length || 0} / {v.engine_tracking?.length || 5} 渠道
+                    </span>
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {(v.engine_tracking || []).map((engine) => (
+                      <div key={engine.engine} className="flex items-center gap-2 rounded-lg border border-zinc-100 p-2">
+                        <span className={`text-[10px] font-bold w-5 h-5 rounded flex items-center justify-center shrink-0 ${ENGINE_COLORS[engine.engine] || "bg-zinc-100 text-zinc-500"}`}>
+                          {ENGINE_ICONS[engine.engine] || engine.engine[0]?.toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-zinc-600 truncate">{engine.label}</p>
+                          <span className={`text-[10px] ${engine.status === "cited" ? "text-green-600" : "text-zinc-400"}`}>
+                            {engine.status === "cited" ? "✓ 已引用" : "未引用"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {(v.engine_tracking || []).length === 0 && (
+                      <p className="text-xs text-zinc-400 col-span-full">尚未注册引擎追踪</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
