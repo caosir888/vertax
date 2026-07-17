@@ -55,5 +55,23 @@ export async function POST(
 
   fireWebhookAsync(user.team_id!, "content.published", { content_id: id, platform, url, notes });
 
+  // 自动创建 content_analytics 记录（如果不存在）
+  const { data: existingAnalytics } = await getSupabase()
+    .from("content_analytics")
+    .select("id")
+    .eq("content_id", id)
+    .maybeSingle();
+
+  if (!existingAnalytics) {
+    await getSupabase().from("content_analytics").insert({
+      content_id: id,
+      team_id: user.team_id,
+      views: 0,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+    });
+  }
+
   return NextResponse.json({ data });
 }

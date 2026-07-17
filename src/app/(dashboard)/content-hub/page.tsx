@@ -96,6 +96,36 @@ export default function ContentHubPage() {
   const [publishResult, setPublishResult] = useState<{ platform: string; url: string } | null>(null);
   const [showSchema, setShowSchema] = useState(false);
 
+  // Analytics data for the published content
+  const [analytics, setAnalytics] = useState<{
+    views: number; clicks: number; likes: number; comments: number; shares: number;
+    engagement: number; seo_score?: number; aeo_score?: number;
+    track_view_url?: string;
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  async function fetchAnalytics(contentId: string) {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/content/${contentId}/analytics`);
+      const json = await res.json();
+      if (json.data) {
+        setAnalytics({
+          views: json.data.views || 0,
+          clicks: json.data.clicks || 0,
+          likes: json.data.likes || 0,
+          comments: json.data.comments || 0,
+          shares: json.data.shares || 0,
+          engagement: json.data.engagement || 0,
+          seo_score: json.data.seo?.overall_score || json.data.seo?.score,
+          aeo_score: json.data.seo?.aeo_score,
+          track_view_url: json.data.track_view_url,
+        });
+      }
+    } catch { /* ignore */ }
+    finally { setAnalyticsLoading(false); }
+  }
+
   // 获取当前模板的默认变量（不自动 reset，避免覆盖从 Step 1 带入的值）
   function getDefaultVars(): Record<string, string> {
     const tpl = templates.find((t) => t.id === selectedTemplate);
@@ -284,6 +314,7 @@ export default function ContentHubPage() {
       if (json.data) {
         setPublishResult({ platform: publishForm.platform, url: publishForm.url });
         toast.success("发布成功");
+        fetchAnalytics(savedContentId!);
       } else {
         toast.error(json.error || "发布失败");
       }
@@ -819,78 +850,107 @@ export default function ContentHubPage() {
 
         {/* 统一效果看板 */}
         <div className="rounded-xl border border-zinc-200 bg-white p-6">
-          <h3 className="text-sm font-semibold text-black mb-4">统一效果看板</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* SEO 卡片 */}
-            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <BarChart3 className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-medium text-black">SEO</span>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-black">统一效果看板</h3>
+            {savedContentId && (
+              <button
+                onClick={() => fetchAnalytics(savedContentId)}
+                disabled={analyticsLoading}
+                className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-black transition-colors"
+              >
+                {analyticsLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span>刷新数据</span>}
+              </button>
+            )}
+          </div>
+
+          {/* 互动指标 */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-4">
+            {[
+              { label: "浏览", value: analytics?.views, icon: "👁", color: "text-blue-600" },
+              { label: "点击", value: analytics?.clicks, icon: "👆", color: "text-indigo-600" },
+              { label: "点赞", value: analytics?.likes, icon: "👍", color: "text-green-600" },
+              { label: "评论", value: analytics?.comments, icon: "💬", color: "text-purple-600" },
+              { label: "分享", value: analytics?.shares, icon: "📤", color: "text-orange-600" },
+              { label: "互动分", value: analytics?.engagement, icon: "⭐", color: "text-amber-600" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-center">
+                <div className="text-lg mb-0.5">{s.icon}</div>
+                <div className={`text-xl font-bold ${s.color}`}>
+                  {analytics ? (s.value ?? 0) : "—"}
+                </div>
+                <div className="text-xs text-zinc-400">{s.label}</div>
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">评分</span>
-                  <span className="font-medium">{optimizeResults?.seo?.score || "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">关键词</span>
-                  <span className="font-medium">{getEffectiveVars().question || "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">状态</span>
-                  <span className="text-green-600 font-medium">{publishResult ? "已发布" : "未发布"}</span>
-                </div>
+            ))}
+          </div>
+
+          {/* 质量评分行 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-center">
+              <div className="text-xs text-zinc-400 mb-0.5">SEO 评分</div>
+              <div className="text-lg font-bold text-blue-600">
+                {analytics?.seo_score || optimizeResults?.seo?.score || "—"}
               </div>
             </div>
-
-            {/* AEO 卡片 */}
-            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="h-4 w-4 text-purple-500" />
-                <span className="text-sm font-medium text-black">AEO</span>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Schema</span>
-                  <span className="font-medium">{optimizeResults?.aeo?.schema_generated ? "已部署" : "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">FAQ Q&A</span>
-                  <span className="font-medium">{optimizeResults?.aeo?.faq_count || 0} 条</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">摘要状态</span>
-                  <span className="text-zinc-500">{optimizeResults?.aeo ? "可被提取" : "—"}</span>
-                </div>
+            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-center">
+              <div className="text-xs text-zinc-400 mb-0.5">AEO 评分</div>
+              <div className="text-lg font-bold text-purple-600">
+                {analytics?.aeo_score || "—"}
               </div>
             </div>
-
-            {/* GEO 卡片 */}
-            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Globe className="h-4 w-4 text-green-500" />
-                <span className="text-sm font-medium text-black">GEO</span>
+            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-center">
+              <div className="text-xs text-zinc-400 mb-0.5">Schema</div>
+              <div className="text-sm font-medium text-black mt-1">
+                {optimizeResults?.aeo?.schema_generated ? "已部署" : "—"}
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">框架</span>
-                  <span className="font-medium">{optimizeResults?.geo?.framework || "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">引擎版本</span>
-                  <span className="font-medium">{optimizeResults?.geo?.id ? "已生成" : "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">追踪引擎</span>
-                  <span className="text-xs text-zinc-500">5 引擎</span>
-                </div>
+            </div>
+            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-center">
+              <div className="text-xs text-zinc-400 mb-0.5">发布状态</div>
+              <div className={`text-sm font-medium mt-1 ${publishResult ? "text-green-600" : "text-zinc-400"}`}>
+                {publishResult ? "已发布" : "未发布"}
               </div>
             </div>
           </div>
 
-          {!optimizeResults && (
-            <p className="text-xs text-zinc-400 mt-4 text-center">
-              完成「优化」步骤后，此处展示 SEO/AEO/GEO 统一指标
+          {/* 追踪代码 */}
+          {publishResult && analytics?.track_view_url && (
+            <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 mb-4">
+              <h4 className="text-xs font-semibold text-zinc-500 mb-2">追踪代码</h4>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-zinc-400 mb-1">浏览追踪（嵌入发布页面的 &lt;img&gt; 标签）：</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-zinc-200 px-3 py-1.5 text-xs text-zinc-700 font-mono break-all">
+                      {`<img src="${analytics.track_view_url}" width="1" height="1" alt="" />`}
+                    </code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(`<img src="${analytics.track_view_url}" width="1" height="1" alt="" />`); toast.success("已复制"); }}
+                      className="shrink-0 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-200 transition-colors"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-400 mb-1">点击追踪链接（替换原链接，统计后自动跳转）：</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-zinc-200 px-3 py-1.5 text-xs text-zinc-700 font-mono break-all">
+                      {analytics.track_view_url.replace("/view", "/click")}?url=你的目标链接
+                    </code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(analytics.track_view_url!.replace("/view", "/click") + "?url=你的目标链接"); toast.success("已复制"); }}
+                      className="shrink-0 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-200 transition-colors"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!publishResult && !optimizeResults && (
+            <p className="text-xs text-zinc-400 text-center">
+              完成「优化」并「发布」后，此处展示效果数据与追踪代码
             </p>
           )}
         </div>
