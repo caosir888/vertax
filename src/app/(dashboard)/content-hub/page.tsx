@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { ChevronRight, ChevronDown, Check, Loader2, Sparkles, ExternalLink, FileText, Globe, BarChart3, Copy, Eye } from "lucide-react";
-import { templates, fillTemplate, languages } from "@/lib/templates";
+import { templates, languages } from "@/lib/templates";
 import { Toaster, toast } from "sonner";
 
 interface Question {
@@ -36,6 +37,16 @@ const STEPS = [
   { key: "publish", label: "发布&监测", desc: "统一看板" },
 ];
 
+const PLATFORM_OPTIONS: Record<string, string> = {
+  website: "官网",
+  wechat: "微信公众号",
+  linkedin: "LinkedIn",
+  email: "邮件",
+  media: "媒体投稿",
+  manual: "手动发布",
+  other: "其他",
+};
+
 const JOURNEY_LABELS: Record<string, string> = {
   awareness: "认知阶段",
   consideration: "考虑阶段",
@@ -55,11 +66,19 @@ export default function ContentHubPage() {
 
   // Step 2: Create
   const [selectedTemplate, setSelectedTemplate] = useState("answer-first");
+  const [plannerOutput, setPlannerOutput] = useState<Record<string, string>>({});
   const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
   const [language, setLanguage] = useState("zh-CN");
   const [generatedContent, setGeneratedContent] = useState("");
   const [contentTitle, setContentTitle] = useState("");
   const [savedContentId, setSavedContentId] = useState<string | null>(null);
+
+  // plannerOutput 保存从 Step 1 带入的不可变值，templateVars 保存用户在 Step 2 的编辑
+  // 渲染时合并：plannerOutput 作为基底，templateVars 可覆盖
+  function getEffectiveVars(): Record<string, string> {
+    const defaults = getDefaultVars();
+    return { ...defaults, ...plannerOutput, ...templateVars };
+  }
 
   // Step 3: Optimize
   const [optimizeLoading, setOptimizeLoading] = useState(false);
@@ -73,7 +92,8 @@ export default function ContentHubPage() {
 
   // Step 4: Publish & Monitor
   const [publishLoading, setPublishLoading] = useState(false);
-  const [published, setPublished] = useState(false);
+  const [publishForm, setPublishForm] = useState({ platform: "website", url: "", notes: "" });
+  const [publishResult, setPublishResult] = useState<{ platform: string; url: string } | null>(null);
   const [showSchema, setShowSchema] = useState(false);
 
   // 获取当前模板的默认变量（不自动 reset，避免覆盖从 Step 1 带入的值）
@@ -84,21 +104,6 @@ export default function ContentHubPage() {
     tpl.variables.forEach((v) => { vars[v.key] = ""; });
     return vars;
   }
-
-  // 将选中的问题合并到模板变量
-  useEffect(() => {
-    if (planData && selectedQuestions.size > 0) {
-      const questions: string[] = [];
-      for (const key of selectedQuestions) {
-        questions.push(key);
-      }
-      setTemplateVars((prev) => ({
-        ...prev,
-        question: questions[0] || prev.question || "",
-        key_points: questions.join("；"),
-      }));
-    }
-  }, [selectedQuestions, planData]);
 
   function toggleQuestion(q: string) {
     setSelectedQuestions((prev) => {
@@ -138,15 +143,13 @@ export default function ContentHubPage() {
       toast.error("请至少选择一个问题");
       return;
     }
-    // 将选中问题中的第一个作为核心问题
     const qs = Array.from(selectedQuestions);
-    setTemplateVars((prev) => ({
-      ...prev,
+    setPlannerOutput({
       question: qs[0] || "",
       topic: topic,
       target_audience: audience,
       key_points: qs.join("；"),
-    }));
+    });
     setStep(1);
   }
 
@@ -154,39 +157,35 @@ export default function ContentHubPage() {
   async function handleGenerate() {
     const tpl = templates.find((t) => t.id === selectedTemplate);
     if (!tpl) return toast.error("请选择模板");
-    // 合并默认空值 + 实际值，避免空字段
-    const merged = { ...getDefaultVars(), ...templateVars };
-    if (!merged.question && !merged.topic) return toast.error("请填写核心问题或主题");
-
+    const vars = getEffectiveVars();
     setLoading(true);
     try {
-      const prompt = fillTemplate(tpl.userPromptTemplate, { ...merged, language });
       const res = await fetch("/api/content/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          system_prompt: tpl.systemPrompt,
-          user_prompt: prompt,
           template_id: selectedTemplate,
+          variables: { ...vars },
+          language,
         }),
       });
       const json = await res.json();
       if (json.data?.versions?.[0]) {
-        const text = json.data.versions[0];
+        const v = json.data.versions[0];
+        const text = typeof v === "string" ? v : v.content || "";
         setGeneratedContent(text);
-        // 尝试提取标题
         const titleMatch = text.match(/^#{1,2}\s*(.+)/m);
-        setContentTitle(titleMatch ? titleMatch[1].trim() : templateVars.topic || "新内容");
+        setContentTitle(titleMatch ? titleMatch[1].trim() : vars.topic || "新内容");
         toast.success("内容生成成功");
       } else if (json.data?.content) {
         setGeneratedContent(json.data.content);
-        setContentTitle(templateVars.topic || "新内容");
+        setContentTitle(vars.topic || "新内容");
         toast.success("内容生成成功");
       } else {
         toast.error(json.error || "生成失败");
       }
-    } catch {
-      toast.error("请求失败");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "请求失败");
     } finally {
       setLoading(false);
     }
@@ -205,7 +204,7 @@ export default function ContentHubPage() {
           template_id: selectedTemplate,
           language,
           status: "draft",
-          tags: [templateVars.question || "", templateVars.topic || ""].filter(Boolean),
+          tags: [getEffectiveVars().question || "", getEffectiveVars().topic || ""].filter(Boolean),
         }),
       });
       const json = await res.json();
@@ -275,11 +274,15 @@ export default function ContentHubPage() {
       const res = await fetch(`/api/content/${savedContentId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: "website", url: "", notes: "智能内容中心一键发布" }),
+        body: JSON.stringify({
+          platform: publishForm.platform,
+          url: publishForm.url,
+          notes: publishForm.notes || "智能内容中心一键发布",
+        }),
       });
       const json = await res.json();
       if (json.data) {
-        setPublished(true);
+        setPublishResult({ platform: publishForm.platform, url: publishForm.url });
         toast.success("发布成功");
       } else {
         toast.error(json.error || "发布失败");
@@ -464,7 +467,7 @@ export default function ContentHubPage() {
                 </label>
                 {v.key === "key_points" || v.key === "target_audience" ? (
                   <textarea
-                    value={templateVars[v.key] || ""}
+                    value={getEffectiveVars()[v.key] || ""}
                     onChange={(e) => setTemplateVars({ ...templateVars, [v.key]: e.target.value })}
                     placeholder={v.placeholder}
                     rows={3}
@@ -472,7 +475,7 @@ export default function ContentHubPage() {
                   />
                 ) : (
                   <input
-                    value={templateVars[v.key] || ""}
+                    value={getEffectiveVars()[v.key] || ""}
                     onChange={(e) => setTemplateVars({ ...templateVars, [v.key]: e.target.value })}
                     placeholder={v.placeholder}
                     className="w-full rounded-lg border border-zinc-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
@@ -716,9 +719,9 @@ export default function ContentHubPage() {
         {/* 发布区 */}
         <div className="rounded-xl border border-zinc-200 bg-white p-6">
           <h3 className="text-sm font-semibold text-black mb-3">
-            {published ? "已发布" : savedContentId ? "内容就绪，可以发布" : "尚未保存内容"}
+            {publishResult ? "已发布" : savedContentId ? "内容就绪，可以发布" : "尚未保存内容"}
           </h3>
-          {savedContentId && (
+          {savedContentId && !publishResult && (
             <>
               <div className="space-y-3 mb-4">
                 <div className="flex items-center gap-3 text-sm">
@@ -726,23 +729,91 @@ export default function ContentHubPage() {
                   <span className="text-zinc-600">{contentTitle || "未命名内容"}</span>
                 </div>
                 {optimizeResults && (
-                  <>
-                    <div className="flex items-center gap-3 text-sm">
-                      <Check className="h-4 w-4 text-green-500" />
-                      <span className="text-zinc-600">SEO/AEO/GEO 优化已完成</span>
-                    </div>
-                  </>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span className="text-zinc-600">SEO/AEO/GEO 优化已完成</span>
+                  </div>
                 )}
               </div>
+
+              {/* 发布渠道 + URL */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">发布渠道</label>
+                  <select
+                    value={publishForm.platform}
+                    onChange={(e) => setPublishForm({ ...publishForm, platform: e.target.value })}
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                  >
+                    {Object.entries(PLATFORM_OPTIONS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">发布链接</label>
+                  <input
+                    type="url"
+                    value={publishForm.url}
+                    onChange={(e) => setPublishForm({ ...publishForm, url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-zinc-500 mb-1">备注</label>
+                <input
+                  value={publishForm.notes}
+                  onChange={(e) => setPublishForm({ ...publishForm, notes: e.target.value })}
+                  placeholder="发布说明（可选）"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+              </div>
+
               <button
                 onClick={handlePublish}
-                disabled={publishLoading || published}
+                disabled={publishLoading}
                 className="inline-flex items-center gap-2 rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
               >
-                {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : published ? <Check className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
-                {published ? "已发布" : "发布内容"}
+                {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                发布内容
               </button>
             </>
+          )}
+
+          {/* 发布成功结果 */}
+          {publishResult && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 text-sm">
+                <Check className="h-4 w-4 text-green-500" />
+                <span className="text-zinc-600">{contentTitle || "未命名内容"}</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-zinc-400">渠道：</span>
+                <span className="font-medium text-black">{PLATFORM_OPTIONS[publishResult.platform] || publishResult.platform}</span>
+              </div>
+              {publishResult.url && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-zinc-400">链接：</span>
+                  <a
+                    href={publishResult.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    {publishResult.url}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+              <Link
+                href="/content"
+                className="inline-flex items-center gap-1 mt-2 text-xs text-zinc-400 hover:text-black transition-colors"
+              >
+                查看所有发布记录 →
+              </Link>
+            </div>
           )}
         </div>
 
@@ -763,11 +834,11 @@ export default function ContentHubPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">关键词</span>
-                  <span className="font-medium">{templateVars.question || "—"}</span>
+                  <span className="font-medium">{getEffectiveVars().question || "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">状态</span>
-                  <span className="text-green-600 font-medium">{published ? "已发布" : "未发布"}</span>
+                  <span className="text-green-600 font-medium">{publishResult ? "已发布" : "未发布"}</span>
                 </div>
               </div>
             </div>
@@ -822,6 +893,46 @@ export default function ContentHubPage() {
               完成「优化」步骤后，此处展示 SEO/AEO/GEO 统一指标
             </p>
           )}
+        </div>
+
+        {/* 快捷入口 */}
+        <div className="rounded-xl border border-zinc-200 bg-white p-6">
+          <h3 className="text-sm font-semibold text-black mb-4">查看详细数据</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Link
+              href="/content"
+              className="flex items-center gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm hover:bg-zinc-100 transition-colors"
+            >
+              <FileText className="h-5 w-5 text-zinc-500" />
+              <div>
+                <p className="font-medium text-black">内容工坊</p>
+                <p className="text-xs text-zinc-400">发布记录 & 内容分析</p>
+              </div>
+              <ExternalLink className="h-3.5 w-3.5 text-zinc-300 ml-auto" />
+            </Link>
+            <Link
+              href="/growth"
+              className="flex items-center gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm hover:bg-zinc-100 transition-colors"
+            >
+              <BarChart3 className="h-5 w-5 text-zinc-500" />
+              <div>
+                <p className="font-medium text-black">增长系统</p>
+                <p className="text-xs text-zinc-400">SEO/AEO 优化详情</p>
+              </div>
+              <ExternalLink className="h-3.5 w-3.5 text-zinc-300 ml-auto" />
+            </Link>
+            <Link
+              href="/analytics"
+              className="flex items-center gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm hover:bg-zinc-100 transition-colors"
+            >
+              <Globe className="h-5 w-5 text-zinc-500" />
+              <div>
+                <p className="font-medium text-black">数据分析</p>
+                <p className="text-xs text-zinc-400">互动排行 & 趋势</p>
+              </div>
+              <ExternalLink className="h-3.5 w-3.5 text-zinc-300 ml-auto" />
+            </Link>
+          </div>
         </div>
       </div>
     );
