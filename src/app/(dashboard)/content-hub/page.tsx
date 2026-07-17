@@ -76,15 +76,14 @@ export default function ContentHubPage() {
   const [published, setPublished] = useState(false);
   const [showSchema, setShowSchema] = useState(false);
 
-  // 从模板变量初始化
-  useEffect(() => {
+  // 获取当前模板的默认变量（不自动 reset，避免覆盖从 Step 1 带入的值）
+  function getDefaultVars(): Record<string, string> {
     const tpl = templates.find((t) => t.id === selectedTemplate);
-    if (tpl) {
-      const vars: Record<string, string> = {};
-      tpl.variables.forEach((v) => { vars[v.key] = ""; });
-      setTemplateVars(vars);
-    }
-  }, [selectedTemplate]);
+    if (!tpl) return {};
+    const vars: Record<string, string> = {};
+    tpl.variables.forEach((v) => { vars[v.key] = ""; });
+    return vars;
+  }
 
   // 将选中的问题合并到模板变量
   useEffect(() => {
@@ -155,11 +154,13 @@ export default function ContentHubPage() {
   async function handleGenerate() {
     const tpl = templates.find((t) => t.id === selectedTemplate);
     if (!tpl) return toast.error("请选择模板");
-    if (!templateVars.question && !templateVars.topic) return toast.error("请填写核心问题或主题");
+    // 合并默认空值 + 实际值，避免空字段
+    const merged = { ...getDefaultVars(), ...templateVars };
+    if (!merged.question && !merged.topic) return toast.error("请填写核心问题或主题");
 
     setLoading(true);
     try {
-      const prompt = fillTemplate(tpl.userPromptTemplate, { ...templateVars, language });
+      const prompt = fillTemplate(tpl.userPromptTemplate, { ...merged, language });
       const res = await fetch("/api/content/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -438,7 +439,7 @@ export default function ContentHubPage() {
             {templates.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setSelectedTemplate(t.id)}
+                onClick={() => { setSelectedTemplate(t.id); setTemplateVars({}); }}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
                   selectedTemplate === t.id ? "border-black bg-black text-white" : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
                 }`}
