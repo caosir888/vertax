@@ -102,6 +102,10 @@ export default function ContentPage() {
   const [records, setRecords] = useState<PublishRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
 
+  // 批量操作
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
+
   // 分析
   const [analytics, setAnalytics] = useState<ContentAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -209,6 +213,58 @@ export default function ContentPage() {
     } catch {
       toast.error("更新失败");
     }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((i) => i.id)));
+    }
+  }
+
+  async function batchOptimize() {
+    setBatchLoading(true);
+    try {
+      const res = await fetch("/api/content-hub/batch-optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_ids: Array.from(selectedIds) }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        toast.success(`批量优化完成：${json.data.success}/${json.data.total} 篇成功`);
+      }
+      setSelectedIds(new Set());
+      loadItems();
+    } catch { toast.error("批量优化失败"); }
+    finally { setBatchLoading(false); }
+  }
+
+  async function batchPublish() {
+    setBatchLoading(true);
+    try {
+      const res = await fetch("/api/content/batch-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_ids: Array.from(selectedIds) }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        toast.success(`批量发布完成：${json.data.success}/${json.data.total} 篇成功`);
+      }
+      setSelectedIds(new Set());
+      loadItems();
+    } catch { toast.error("批量发布失败"); }
+    finally { setBatchLoading(false); }
   }
 
   function loadFromLibrary(item: ContentItem) {
@@ -458,6 +514,47 @@ export default function ContentPage() {
               </select>
             </div>
 
+            {/* 批量操作工具栏 */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 rounded-xl border border-black bg-black text-white px-4 py-2.5 mb-3">
+                <span className="text-sm font-medium">{selectedIds.size} 篇已选</span>
+                <div className="flex-1" />
+                <button
+                  onClick={batchOptimize}
+                  disabled={batchLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-white text-black font-medium hover:bg-zinc-100 disabled:opacity-50"
+                >
+                  {batchLoading ? "处理中..." : "批量优化"}
+                </button>
+                <button
+                  onClick={batchPublish}
+                  disabled={batchLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-green-500 text-white font-medium hover:bg-green-400 disabled:opacity-50"
+                >
+                  批量发布
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-zinc-700 text-white hover:bg-zinc-600"
+                >
+                  取消
+                </button>
+              </div>
+            )}
+
+            {/* 全选 */}
+            {items.length > 0 && (
+              <label className="flex items-center gap-2 text-sm text-zinc-500 mb-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === items.length}
+                  onChange={toggleSelectAll}
+                  className="rounded border-zinc-300"
+                />
+                全选
+              </label>
+            )}
+
             {libLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -476,6 +573,12 @@ export default function ContentPage() {
                     className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-5 py-4 hover:border-zinc-300 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelect(item.id)}
+                        className="rounded border-zinc-300 shrink-0"
+                      />
                       <span className="text-lg shrink-0">
                         {templateIcons[item.template_id] || "📄"}
                       </span>

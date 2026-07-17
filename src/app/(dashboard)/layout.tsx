@@ -38,6 +38,7 @@ const navGroups = [
       { href: "/content", label: "内容工坊", icon: "✍️" },
       { href: "/growth", label: "增长系统", icon: "📈" },
       { href: "/content-hub", label: "智能内容中心", icon: "🧠" },
+      { href: "/content-calendar", label: "内容日历", icon: "📅" },
       { href: "/buzz", label: "声量引擎", icon: "🔊" },
     ],
   },

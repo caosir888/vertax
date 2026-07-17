@@ -17,7 +17,44 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { platform = "manual", url = "", notes = "" } = body;
+  const { platform = "manual", url = "", notes = "", scheduled_at = null } = body;
+
+  // 定时发布：不立即发布，只设置发布时间和状态
+  if (scheduled_at) {
+    const { error: schedError } = await getSupabase()
+      .from("contents")
+      .update({ status: "scheduled", scheduled_at, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("team_id", user.team_id);
+
+    if (schedError) {
+      return NextResponse.json({ error: schedError.message }, { status: 500 });
+    }
+
+    // 记录发布计划
+    const { data, error } = await getSupabase()
+      .from("publish_records")
+      .insert({
+        content_id: id,
+        team_id: user.team_id,
+        user_id: user.id,
+        platform,
+        url,
+        notes,
+        published_at: null,
+        scheduled_at,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    logActivity({ team_id: user.team_id!, user_id: user.id, user_name: user.name, action: "定时发布", target: id, details: `${platform} — ${scheduled_at}` });
+
+    return NextResponse.json({ data: { ...data, scheduled: true, scheduled_at } });
+  }
 
   // 更新内容状态为已发布
   const { error: updateError } = await getSupabase()

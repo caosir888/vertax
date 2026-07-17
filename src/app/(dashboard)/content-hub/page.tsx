@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronDown, Check, Loader2, Sparkles, ExternalLink, FileText, Globe, BarChart3, Copy, Eye } from "lucide-react";
+import { ChevronRight, ChevronDown, Check, Loader2, Sparkles, ExternalLink, FileText, Globe, BarChart3, Copy, Eye, Clock } from "lucide-react";
 import { templates, languages } from "@/lib/templates";
 import { Toaster, toast } from "sonner";
 
@@ -73,6 +73,14 @@ export default function ContentHubPage() {
   const [contentTitle, setContentTitle] = useState("");
   const [savedContentId, setSavedContentId] = useState<string | null>(null);
 
+  // 自定义模板
+  const [userTemplates, setUserTemplates] = useState<Array<{
+    id: string; name: string; description: string; variables: Array<{key: string; label: string}>;
+    system_prompt: string; user_prompt: string;
+  }>>([]);
+  const [showTemplateMgr, setShowTemplateMgr] = useState(false);
+  const [templateFormName, setTemplateFormName] = useState("");
+
   // plannerOutput 保存从 Step 1 带入的不可变值，templateVars 保存用户在 Step 2 的编辑
   // 渲染时合并：plannerOutput 作为基底，templateVars 可覆盖
   function getEffectiveVars(): Record<string, string> {
@@ -92,8 +100,8 @@ export default function ContentHubPage() {
 
   // Step 4: Publish & Monitor
   const [publishLoading, setPublishLoading] = useState(false);
-  const [publishForm, setPublishForm] = useState({ platform: "website", url: "", notes: "" });
-  const [publishResult, setPublishResult] = useState<{ platform: string; url: string } | null>(null);
+  const [publishForm, setPublishForm] = useState({ platform: "website", url: "", notes: "", scheduledAt: "" });
+  const [publishResult, setPublishResult] = useState<{ platform: string; url: string; scheduled?: boolean; scheduled_at?: string } | null>(null);
   const [showSchema, setShowSchema] = useState(false);
 
   // Analytics data for the published content
@@ -251,6 +259,51 @@ export default function ContentHubPage() {
     }
   }
 
+  // ====== 自定义模板管理 ======
+  async function loadUserTemplates() {
+    try {
+      const res = await fetch("/api/user-templates");
+      const json = await res.json();
+      if (json.data) setUserTemplates(json.data);
+    } catch { /* ignore */ }
+  }
+
+  async function saveAsTemplate() {
+    const name = templateFormName.trim();
+    if (!name) { toast.error("请输入模板名称"); return; }
+
+    const tpl = templates.find((t) => t.id === selectedTemplate);
+    try {
+      const res = await fetch("/api/user-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          description: `基于"${tpl?.name || selectedTemplate}"创建`,
+          variables: tpl?.variables || [],
+          system_prompt: tpl?.systemPrompt || "",
+          user_prompt: tpl?.userPromptTemplate || "",
+        }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        toast.success("模板已保存");
+        setTemplateFormName("");
+        loadUserTemplates();
+      } else {
+        toast.error(json.error || "保存失败");
+      }
+    } catch { toast.error("保存模板失败"); }
+  }
+
+  async function deleteTemplate(id: string) {
+    try {
+      await fetch(`/api/user-templates?id=${id}`, { method: "DELETE" });
+      toast.success("模板已删除");
+      loadUserTemplates();
+    } catch { toast.error("删除失败"); }
+  }
+
   // ====== Step 3: 一键智能优化 (SSE 实时进度) ======
   async function handleOptimize() {
     if (!savedContentId) {
@@ -364,13 +417,20 @@ export default function ContentHubPage() {
           platform: publishForm.platform,
           url: publishForm.url,
           notes: publishForm.notes || "智能内容中心一键发布",
+          scheduled_at: publishForm.scheduledAt || null,
         }),
       });
       const json = await res.json();
       if (json.data) {
-        setPublishResult({ platform: publishForm.platform, url: publishForm.url });
-        toast.success("发布成功");
-        fetchAnalytics(savedContentId!);
+        const isScheduled = !!json.data.scheduled;
+        setPublishResult({
+          platform: publishForm.platform,
+          url: publishForm.url,
+          scheduled: isScheduled,
+          scheduled_at: json.data.scheduled_at,
+        });
+        toast.success(isScheduled ? `已排期：${new Date(json.data.scheduled_at).toLocaleString("zh-CN")}` : "发布成功");
+        if (!isScheduled) fetchAnalytics(savedContentId!);
       } else {
         toast.error(json.error || "发布失败");
       }
@@ -539,6 +599,56 @@ export default function ContentHubPage() {
               </button>
             ))}
           </div>
+
+          {/* 自定义模板管理 */}
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={() => { setShowTemplateMgr(!showTemplateMgr); if (!showTemplateMgr) loadUserTemplates(); }}
+              className="text-xs text-zinc-400 hover:text-black transition-colors"
+            >
+              {showTemplateMgr ? "收起" : `我的模板 (${userTemplates.length})`}
+            </button>
+            {!showTemplateMgr && (
+              <>
+                <input
+                  value={templateFormName}
+                  onChange={(e) => setTemplateFormName(e.target.value)}
+                  placeholder="名称 → 保存当前模板"
+                  className="text-xs rounded border border-zinc-200 px-2 py-1 w-40 focus:outline-none focus:border-black"
+                  onKeyDown={(e) => { if (e.key === "Enter") saveAsTemplate(); }}
+                />
+                <button onClick={saveAsTemplate} className="text-xs px-2 py-1 rounded bg-zinc-100 text-zinc-600 hover:bg-zinc-200">保存</button>
+              </>
+            )}
+          </div>
+
+          {showTemplateMgr && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  value={templateFormName}
+                  onChange={(e) => setTemplateFormName(e.target.value)}
+                  placeholder="新模板名称"
+                  className="text-sm rounded border border-zinc-200 px-2 py-1 flex-1 focus:outline-none focus:border-black"
+                  onKeyDown={(e) => { if (e.key === "Enter") saveAsTemplate(); }}
+                />
+                <button onClick={saveAsTemplate} className="text-xs px-3 py-1.5 rounded bg-black text-white hover:bg-zinc-800">保存为模板</button>
+              </div>
+              {userTemplates.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-2">暂无自定义模板，输入名称后点击保存</p>
+              ) : (
+                userTemplates.map((ut) => (
+                  <div key={ut.id} className="flex items-center justify-between bg-white rounded border border-zinc-100 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-black">{ut.name}</p>
+                      <p className="text-xs text-zinc-400">{ut.description}</p>
+                    </div>
+                    <button onClick={() => deleteTemplate(ut.id)} className="text-xs text-red-400 hover:text-red-600">删除</button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* 模板变量 */}
@@ -858,13 +968,32 @@ export default function ContentHubPage() {
                 />
               </div>
 
+              {/* 定时发布 */}
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-zinc-500 mb-1">
+                  <Clock className="h-3 w-3 inline mr-1" />
+                  定时发布（可选）
+                </label>
+                <input
+                  type="datetime-local"
+                  value={publishForm.scheduledAt}
+                  onChange={(e) => setPublishForm({ ...publishForm, scheduledAt: e.target.value })}
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+                {publishForm.scheduledAt && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    内容将在 {new Date(publishForm.scheduledAt).toLocaleString("zh-CN")} 自动发布
+                  </p>
+                )}
+              </div>
+
               <button
                 onClick={handlePublish}
                 disabled={publishLoading}
                 className="inline-flex items-center gap-2 rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
               >
-                {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-                发布内容
+                {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : publishForm.scheduledAt ? <Clock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                {publishForm.scheduledAt ? "定时发布" : "发布内容"}
               </button>
             </>
           )}
