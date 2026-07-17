@@ -151,7 +151,29 @@ export default function KnowledgePage() {
       });
       const json = await res.json();
       if (json.error) { toast.error(json.error); return; }
+      const docId = json.data?.id;
       toast.success(`"${file.name}" 上传成功`);
+
+      // 自动解析
+      if (docId) {
+        toast.info("正在自动解析文档...");
+        const parseRes = await fetch(`/api/documents/${docId}/parse`, { method: "POST" });
+        const parseJson = await parseRes.json();
+        if (parseJson.error) {
+          toast.error(`解析失败: ${parseJson.error}`);
+        } else {
+          toast.success(`解析完成！${parseJson.data.chunk_count} 个文本块`);
+          // 自动向量化
+          toast.info("正在生成向量索引...");
+          const embedRes = await fetch(`/api/documents/${docId}/embed`, { method: "POST" });
+          const embedJson = await embedRes.json();
+          if (embedJson.error) {
+            toast.error(`向量化失败: ${embedJson.error}`);
+          } else {
+            toast.success("向量化完成，可进行智能问答");
+          }
+        }
+      }
       loadDocs();
     } catch { toast.error("上传失败"); }
     finally { setUploading(false); }

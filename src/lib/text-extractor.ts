@@ -8,31 +8,90 @@ export async function extractText(
   fileType: string,
   fileName: string
 ): Promise<string> {
-  // PDF — pdfreader 纯文本提取，无需 DOM/canvas
-  if (fileType === "application/pdf") {
-    const { PdfReader } = await import("pdfreader");
-    const text = await new Promise<string>((resolve, reject) => {
-      const lines: string[] = [];
-      new PdfReader().parseBuffer(new Uint8Array(buffer) as unknown as Buffer, (err, item) => {
-        if (err) { reject(err); return; }
-        if (!item) { resolve(lines.join("\n")); return; }
-        if (item.text) lines.push(item.text.trim());
+  // PDF — 使用 pdfreader 提取文本
+  if (fileType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
+    try {
+      const { PdfReader } = await import("pdfreader");
+      const text = await new Promise<string>((resolve, reject) => {
+        const lines: string[] = [];
+        const reader = new PdfReader();
+        reader.parseBuffer(new Uint8Array(buffer) as unknown as Buffer, (err, item) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          if (!item) {
+            resolve(lines.join("\n"));
+            return;
+          }
+          if (item.text) {
+            lines.push(item.text.trim());
+          }
+        });
       });
-    });
-    return text;
+      if (text && text.trim()) return text;
+    } catch {
+      // pdfreader 提取失败，继续尝试其他方式
+    }
+    // 如果 pdfreader 返回空文本，尝试用原始方式读取
+    try {
+      const raw = buffer.toString("utf-8");
+      // 简易提取 PDF 中的可读文本（去除非打印字符）
+      const cleaned = raw.replace(/[^\x20-\x7E一-鿿　-〿＀-￯\n\r\t]/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      if (cleaned.length > 100) return cleaned;
+    } catch {
+      // 忽略
+    }
+    return "";
   }
 
-  // Word (.docx / .doc)
+  // Word (.docx) — mammoth
   if (
     fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    fileType === "application/msword"
+    fileName.toLowerCase().endsWith(".docx")
   ) {
     const result = await mammoth.extractRawText({ buffer });
-    return result.value;
+    const text = result.value?.trim();
+    if (text) return text;
+    // mammoth 可能提取到空内容，尝试显示警告信息
+    if (result.messages?.length) {
+      const msgs = result.messages.map((m) => m.message).join("; ");
+      if (msgs) return "[文档解析警告] " + msgs;
+    }
+    return "";
+  }
+
+  // 旧版 .doc 文件 — mammoth 不支持，尝试原始读取
+  if (fileType === "application/msword" || fileName.toLowerCase().endsWith(".doc")) {
+    // mammoth 可能对某些 .doc 文件有效，先尝试
+    try {
+      const result = await mammoth.extractRawText({ buffer });
+      const text = result.value?.trim();
+      if (text) return text;
+    } catch {
+      // 忽略
+    }
+    // 回退：从二进制中提取可读文本
+    try {
+      const raw = buffer.toString("utf-8");
+      const cleaned = raw.replace(/[^\x20-\x7E一-鿿　-〿＀-￯\n\r\t]/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      if (cleaned.length > 50) return cleaned;
+    } catch {
+      // 忽略
+    }
+    return "";
   }
 
   // TXT / Markdown — 直接当 UTF-8 读
-  return buffer.toString("utf-8");
+  try {
+    return buffer.toString("utf-8").trim();
+  } catch {
+    return "";
+  }
 }
 
 // ========== 文本分块 ==========
@@ -57,7 +116,7 @@ function splitLongParagraph(text: string, maxSize: number): string[] {
   return result.length > 0 ? result : [text];
 }
 
-export function chunkText(text: string, maxChunkSize = 1200, overlap = 100): string[] {
+export function chunkText(text: string, maxChunkSize = 800, overlap = 100): string[] {
   if (!text || !text.trim()) return [];
 
   const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim());
