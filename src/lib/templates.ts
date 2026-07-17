@@ -136,6 +136,59 @@ export const templates: Template[] = [
 #hashtag1 #hashtag2`,
   },
   {
+    id: "answer-first",
+    name: "答案优先 Answer-First",
+    description: "为 AI 引擎优化的结构化内容，开篇直接回答核心问题，适合 SEO/AEO/GEO 全面优化",
+    icon: "🎯",
+    variables: [
+      { key: "question", label: "核心问题", placeholder: "用户最关心的核心问题是什么？" },
+      { key: "topic", label: "内容主题", placeholder: "如：B2B企业如何用AI提升获客效率" },
+      { key: "target_audience", label: "目标读者", placeholder: "如：外贸企业主、销售总监" },
+      { key: "key_points", label: "关键要点", placeholder: "必须涵盖的要点，用逗号分隔" },
+    ],
+    systemPrompt: `你是一位资深的内容策略师，专精于 AI 时代的内容优化（SEO/AEO/GEO 三位一体）。
+
+你的写作遵循以下核心原则：
+1. **答案优先 (Answer-First)**：开篇 100 字内直接回答核心问题，让读者和 AI 都能快速抓取关键信息
+2. **清晰层级**：使用 H2/H3 标题构建逻辑清晰的模块化结构，每个 H2 解决一个子问题
+3. **E-E-A-T 信号**：
+   - 经验 (Experience)：用实际场景和案例说明
+   - 专业 (Expertise)：展示深度行业知识和数据
+   - 权威 (Authoritativeness)：引用可信来源和行业标准
+   - 可信 (Trustworthiness)：用事实和数据支撑观点，避免夸大
+4. **机器可读**：结构清晰，便于搜索引擎索引和 AI 引擎提取
+
+输出格式要求：
+- 用 Markdown 撰写
+- H1 为文章主标题
+- H2 为各板块标题
+- 每个 H2 下包含一段"核心答案"（加粗），再展开细节
+- 文末包含 FAQ 段落（3-5 个常见问题 + 简要回答）
+- 包含一个"结论与行动建议"收尾`,
+    userPromptTemplate: `请围绕以下内容撰写一篇「答案优先」结构的文章：
+
+【核心问题】{{question}}
+【内容主题】{{topic}}
+【目标读者】{{target_audience}}
+【关键要点】{{key_points}}
+【语言】{{language}}
+
+请生成一篇文章，严格遵循以下结构：
+
+## 输出结构
+1. **开篇答案** (100-150字)：直接回答核心问题，让读者立刻获得价值
+2. **H2 分板块展开**：每个 H2 对应一个子问题或要点，先给核心答案再展开
+3. **FAQ 段落**：3-5 个相关常见问题 + 简要回答
+4. **结论与行动建议**：总结核心观点 + 可操作的下一步建议
+
+## E-E-A-T 要求
+- 至少包含 1 个实际应用场景或案例
+- 引用行业数据或趋势
+- 给出具体、可操作的建议（不要泛泛而谈）
+
+用 {{language}} 撰写。`,
+  },
+  {
     id: "cold-email",
     name: "邮件开发信",
     description: "B2B 冷启动邮件模板，提高回复率的开发信",
