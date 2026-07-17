@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智客 VertaX — AI 内容获客平台 · 产品说明书</title>
+<style>
+  :root {
+    --black: #0f0f0f; --white: #ffffff; --gray50: #f9fafb;
+    --gray100: #f3f4f6; --gray200: #e5e7eb; --gray400: #9ca3af;
+    --gray500: #6b7280; --gray600: #4b5563; --gray700: #374151;
+    --gray900: #111827; --purple: #7c3aed; --purple-light: #ede9fe;
+    --green: #059669; --red: #dc2626; --amber: #d97706; --blue: #2563eb;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif; background: var(--gray50); color: var(--gray900); }
+
+  .slide {
+    min-height: 100vh; display: flex; flex-direction: column; justify-content: center;
+    padding: 60px 80px; page-break-after: always; position: relative;
+    background: var(--white); border-bottom: 1px solid var(--gray200);
+  }
+  .slide.dark { background: var(--black); color: var(--white); }
+  .slide.gray { background: var(--gray50); }
+  .slide.gradient { background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%); color: var(--white); }
+
+  .slide-label {
+    position: absolute; top: 32px; right: 48px;
+    font-size: 12px; color: var(--gray400); letter-spacing: 1px;
+  }
+
+  h1 { font-size: 48px; font-weight: 800; line-height: 1.2; letter-spacing: -0.5px; }
+  h2 { font-size: 36px; font-weight: 700; line-height: 1.3; margin-bottom: 16px; }
+  h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { font-size: 20px; color: var(--gray400); font-weight: 400; margin-top: 12px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+
+  .card {
+    background: var(--white); border: 1px solid var(--gray200); border-radius: 16px;
+    padding: 28px; transition: all 0.2s;
+  }
+  .dark .card { background: #1a1a1a; border-color: #333; }
+
+  .stat { font-size: 40px; font-weight: 800; color: var(--purple); line-height: 1; }
+  .stat-label { font-size: 14px; color: var(--gray500); margin-top: 6px; }
+
+  .flow-row { display: flex; align-items: center; gap: 0; justify-content: center; }
+  .flow-step {
+    flex: 1; text-align: center; padding: 24px 16px;
+    border: 2px solid var(--gray200); border-radius: 16px;
+    position: relative;
+  }
+  .flow-step.active { border-color: var(--purple); background: var(--purple-light); }
+  .flow-arrow { font-size: 24px; color: var(--gray400); margin: 0 -4px; z-index: 1; }
+  .flow-num {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--black); color: var(--white);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; margin-bottom: 8px;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { background: var(--black); color: var(--white); text-align: left; padding: 14px 16px; font-weight: 600; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--gray200); }
+  tr:nth-child(even) td { background: var(--gray50); }
+
+  .tag {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+  }
+  .tag-purple { background: var(--purple-light); color: var(--purple); }
+  .tag-green { background: #d1fae5; color: var(--green); }
+  .tag-amber { background: #fef3c7; color: var(--amber); }
+
+  .icon-big { font-size: 48px; margin-bottom: 16px; display: block; }
+  .footer { margin-top: auto; font-size: 13px; color: var(--gray400); text-align: center; padding-top: 40px; }
+
+  .check-list { list-style: none; }
+  .check-list li { padding: 8px 0; padding-left: 28px; position: relative; font-size: 15px; line-height: 1.6; }
+  .check-list li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+
+  .brand-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 48px; }
+  .brand-logo { font-size: 32px; font-weight: 800; }
+  .brand-sub { font-size: 14px; color: var(--gray400); }
+
+  .cta-btn {
+    display: inline-block; padding: 16px 40px; background: var(--purple); color: white;
+    border-radius: 12px; font-size: 18px; font-weight: 700; text-decoration: none;
+    margin-top: 24px; transition: all 0.2s;
+  }
+  .cta-btn:hover { background: #6d28d9; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,58,237,.3); }
+
+  .vs-row { display: flex; gap: 32px; }
+  .vs-col { flex: 1; padding: 28px; border-radius: 16px; }
+  .vs-col.bad { background: #fef2f2; border: 2px solid #fca5a5; }
+  .vs-col.good { background: #f0fdf4; border: 2px solid #86efac; }
+
+  .highlight { color: var(--purple); font-weight: 700; }
+  .big-number { font-size: 64px; font-weight: 900; line-height: 1; }
+
+  @media print {
+    body { background: white; }
+    .slide { min-height: auto; padding: 40px 60px; page-break-after: always; }
+    .slide.gradient, .slide.dark {
+      background: #0f0f0f !important; color: white !important;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .card, .flow-step, .vs-col { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== SLIDE 1: 封面 ==================== -->
+<section class="slide gradient">
+  <div class="slide-label">智客 VertaX · 产品说明书</div>
+  <div class="brand-bar">
+    <span class="brand-logo">智客</span>
+    <span class="brand-sub">VertaX</span>
+  </div>
+  <h1 style="font-size:56px">AI 内容获客<br>从第一篇文章开始</h1>
+  <p class="subtitle" style="font-size:22px;color:#a78bfa;margin-top:20px">
+    SEO + AEO + GEO 三位一体 · 策划 → 创作 → 优化 → 发布全流程
+  </p>
+  <div style="margin-top:48px;display:flex;gap:48px">
+    <div><div class="stat" style="color:#a78bfa">75%</div><div class="stat-label" style="color:#9ca3af">的关键决策场景<br>已被 AI 接管</div></div>
+    <div><div class="stat" style="color:#a78bfa">4步</div><div class="stat-label" style="color:#9ca3af">闭环工作流<br>策划·创作·优化·发布</div></div>
+    <div><div class="stat" style="color:#a78bfa">10+</div><div class="stat-label" style="color:#9ca3af">全球 AI 模型<br>全域可见覆盖</div></div>
+  </div>
+  <p class="footer" style="color:#6b7280">www.caosir118.online &nbsp;|&nbsp; 智客 VertaX 团队 &nbsp;|&nbsp; 2026</p>
+</section>
+
+<!-- ==================== SLIDE 2: 市场变局 ==================== -->
+<section class="slide">
+  <div class="slide-label">01 / 市场洞察</div>
+  <h2>用户在变：从"搜索"到"问 AI"</h2>
+  <p style="font-size:18px;color:var(--gray500);margin-bottom:32px">用户的决策路径正在发生根本性迁移——<strong>不搜索，只提问</strong></p>
+
+  <div class="grid-2" style="margin-bottom:32px">
+    <div class="card">
+      <div class="big-number" style="font-size:48px;color:var(--purple)">75%</div>
+      <p style="font-size:16px;font-weight:600;margin-top:4px">关键决策场景已被 AI 接管</p>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">用户从主动搜索关键词，转向自然语言对话式提问</p>
+    </div>
+    <div class="card">
+      <div class="big-number" style="font-size:48px;color:var(--red)">80%</div>
+      <p style="font-size:16px;font-weight:600;margin-top:4px">企业决策者使用 AI 工具</p>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">你的客户已经在用 AI 做采购决策，你的品牌是否在答案里？</p>
+    </div>
+  </div>
+
+  <div class="vs-row">
+    <div class="vs-col bad">
+      <h3 style="color:var(--red);margin-bottom:12px">✗ 不做 GEO 的风险</h3>
+      <ul class="check-list">
+        <li>品牌在 AI 答案中"消失"</li>
+        <li>AI 引用第三方错误信息，扭曲品牌形象</li>
+        <li>优质内容资产无法被 AI 索引和利用</li>
+        <li>错失 AI 流量红利窗口期</li>
+      </ul>
+    </div>
+    <div class="vs-col good">
+      <h3 style="color:var(--green);margin-bottom:12px">✓ 做 GEO 的收益</h3>
+      <ul class="check-list">
+        <li>品牌成为 AI 的<strong>权威信源</strong>，叙述权可控</li>
+        <li>在问答、摘要、推荐中占据核心位置</li>
+        <li>存量内容适配 AI 检索逻辑，长期产生价值</li>
+        <li>抢先锁定 AI 时代市场份额</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 3: 什么是智客 ==================== -->
+<section class="slide gray">
+  <div class="slide-label">02 / 平台概述</div>
+  <h2>智客 VertaX：一站式 AI 内容获客平台</h2>
+  <p style="font-size:18px;color:var(--gray500);margin-bottom:40px">
+    不是零散工具的拼凑，而是从"用户问题"出发的<strong>完整内容工业化流水线</strong>
+  </p>
+
+  <div class="flow-row">
+    <div class="flow-step active">
+      <div class="flow-num">1</div>
+      <h3 style="font-size:16px">策划</h3>
+      <p style="font-size:13px;color:var(--gray500);margin-top:4px">AI 生成用户问题库<br>按买家旅程分组</p>
+      <span class="tag tag-purple" style="margin-top:8px">问题驱动</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">
+      <div class="flow-num">2</div>
+      <h3 style="font-size:16px">创作</h3>
+      <p style="font-size:13px;color:var(--gray500);margin-top:4px">Answer-First 模板<br>E-E-A-T 信号强化</p>
+      <span class="tag tag-purple" style="margin-top:8px">AI 优先</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">
+      <div class="flow-num">3</div>
+      <h3 style="font-size:16px">优化</h3>
+      <p style="font-size:13px;color:var(--gray500);margin-top:4px">一键三检<br>SEO + AEO + GEO</p>
+      <span class="tag tag-green" style="margin-top:8px">立体校验</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">
+      <div class="flow-num">4</div>
+      <h3 style="font-size:16px">发布 & 监测</h3>
+      <p style="font-size:13px;color:var(--gray500);margin-top:4px">多渠道发布<br>AI 引用追踪看板</p>
+      <span class="tag tag-green" style="margin-top:8px">闭环验证</span>
+    </div>
+  </div>
+
+  <div class="grid-3" style="margin-top:40px">
+    <div class="card">
+      <span class="icon-big">🧠</span>
+      <h3>知识库 RAG</h3>
+      <p style="font-size:14px;color:var(--gray500)">上传文档自动向量化，AI 精准回答任何基于你产品的问题</p>
+    </div>
+    <div class="card">
+      <span class="icon-big">🎯</span>
+      <h3>线索管理 CRM</h3>
+      <p style="font-size:14px;color:var(--gray500)">线索录入、状态流转、商机 Pipeline、今日外联工作台</p>
+    </div>
+    <div class="card">
+      <span class="icon-big">🌐</span>
+      <h3>AI 独立站</h3>
+      <p style="font-size:14px;color:var(--gray500)">3 套模板、AI 自动生成、SEO 优化、一键发布上线</p>
+    </div>
+  </div>
+
+  <p class="footer">知识库 · 内容工坊 · 线索 CRM · Dashboard · 独立站 · 团队协作 — 一站搞定 B2B 获客全链路</p>
+</section>
+
+<!-- ==================== SLIDE 4: 核心差异化 ==================== -->
+<section class="slide dark">
+  <div class="slide-label" style="color:#6b7280">03 / 核心差异化</div>
+  <h2>SEO vs AEO vs GEO — 三位一体</h2>
+  <p style="font-size:18px;color:#9ca3af;margin-bottom:40px">
+    三重优化，覆盖从搜索引擎到 AI 模型的<strong>全部流量入口</strong>
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:12%">维度</th>
+        <th style="width:25%">SEO<br><span style="font-weight:400;font-size:12px">传统搜索引擎优化</span></th>
+        <th style="width:25%">AEO<br><span style="font-weight:400;font-size:12px">答案引擎优化</span></th>
+        <th style="width:38%">
+          <span style="background:var(--purple);padding:2px 8px;border-radius:4px;color:white;font-size:11px;margin-right:6px">核心</span>
+          GEO<br><span style="font-weight:400;font-size:12px">生成式引擎优化</span>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="font-weight:600">目标</td>
+        <td>在 Google/百度 搜索结果中靠前</td>
+        <td>被精选摘要/知识面板收录</td>
+        <td style="font-weight:600">被 ChatGPT/DeepSeek 等 AI 引用推荐</td>
+      </tr>
+      <tr>
+        <td style="font-weight:600">受众</td>
+        <td>主动搜索的用户</td>
+        <td>语音助手 + 零位搜索结果</td>
+        <td style="font-weight:600">AI 对话中的决策者（高意向）</td>
+      </tr>
+      <tr>
+        <td style="font-weight:600">优化对象</td>
+        <td>关键词密度 / 外链 / 页面速度</td>
+        <td>FAQPage Schema / 结构化摘要</td>
+        <td style="font-weight:600">知识图谱 / JSON-LD / 可引用证据单元</td>
+      </tr>
+      <tr>
+        <td style="font-weight:600">效果</td>
+        <td><span class="tag tag-amber">有机会被看见</span></td>
+        <td><span class="tag tag-green">有机会被展示</span></td>
+        <td style="font-weight:600"><span class="tag tag-green" style="font-size:14px;padding:6px 16px">直接成为答案</span></td>
+      </tr>
+      <tr>
+        <td style="font-weight:600">工具</td>
+        <td>Google S.C. / Ahrefs / SEMrush</td>
+        <td>Schema 验证器 / 结构化数据测试</td>
+        <td style="font-weight:600">智客 VertaX 一键三检引擎</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top:28px;font-size:15px;color:var(--gray400);text-align:center">
+    <strong style="color:#a78bfa">智客是市场上极少数同时提供 SEO + AEO + GEO 一体化解决方案的平台</strong>
+    <br>无需 3 套工具、3 个团队 —— 一个平台，全搞定
+  </p>
+
+  <p class="footer" style="color:#4b5563">
+    覆盖 AI 模型：ChatGPT · Claude · Gemini · DeepSeek · 豆包 · 元宝 · 通义千问 · 文心一言 · Perplexity · Grok
+  </p>
+</section>
+
+<!-- ==================== SLIDE 5: 产品功能矩阵 ==================== -->
+<section class="slide gray">
+  <div class="slide-label">04 / 功能矩阵</div>
+  <h2>不止 GEO — 完整的获客操作系统</h2>
+
+  <div class="grid-2" style="gap:28px">
+    <div class="card">
+      <span style="font-size:32px">📊</span>
+      <h3 style="margin-top:8px">智能内容中心 (Content Hub)</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        四步工作流：AI 策划用户问题库 → Answer-First 模板创作 → 一键 SEO/AEO/GEO 三检 → 多渠道发布
+      </p>
+      <span class="tag tag-purple">核心模块</span>
+    </div>
+    <div class="card">
+      <span style="font-size:32px">📚</span>
+      <h3 style="margin-top:8px">知识库 RAG</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        上传 PDF/Word/Markdown，自动分块+向量化。AI 基于你的产品知识精准问答，支持语义搜索
+      </p>
+      <span class="tag tag-green">信任基础</span>
+    </div>
+    <div class="card">
+      <span style="font-size:32px">🎯</span>
+      <h3 style="margin-top:8px">获客雷达 + CRM</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        ICP 画像配置 → AI 自动搜索匹配线索 → Pipeline 商机管理 → 今日外联工作台
+      </p>
+      <span class="tag tag-green">增长引擎</span>
+    </div>
+    <div class="card">
+      <span style="font-size:32px">🌐</span>
+      <h3 style="margin-top:8px">AI 独立站 + 内容日历</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        3 套模板 + AI 自动生成网站内容，SEO 优化，一键发布。内容日历月视图规划排期
+      </p>
+      <span class="tag tag-green">线上阵地</span>
+    </div>
+    <div class="card">
+      <span style="font-size:32px">📈</span>
+      <h3 style="margin-top:8px">统一数据看板</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        跨模块指标：线索趋势 + 内容产量 + SEO 均分 + AI 引用追踪 + 转化漏斗
+      </p>
+      <span class="tag tag-purple">决策驾驶舱</span>
+    </div>
+    <div class="card">
+      <span style="font-size:32px">🔌</span>
+      <h3 style="margin-top:8px">开放 API + llms.txt</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        REST API + API Key 接入现有系统。llms.txt 公网端点，供 AI 爬虫直接索引站点内容
+      </p>
+      <span class="tag tag-green">生态兼容</span>
+    </div>
+  </div>
+
+  <p class="footer">每个模块既可独立使用，也可串联为完整的 AI 内容获客流水线</p>
+</section>
+
+<!-- ==================== SLIDE 6: 服务体系 ==================== -->
+<section class="slide">
+  <div class="slide-label">05 / 服务体系</div>
+  <h2>阶梯化服务方案 — 适配不同发展阶段</h2>
+  <p style="font-size:18px;color:var(--gray500);margin-bottom:36px">
+    从初创到集团，精准匹配资源投入，最大化 ROI
+  </p>
+
+  <div class="grid-3">
+    <!-- 基础版 -->
+    <div class="card" style="border-top: 4px solid var(--gray400)">
+      <span class="tag tag-purple" style="margin-bottom:12px">成长版</span>
+      <h3 style="font-size:24px">内容基石</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">适合：国内 B2B 企业、品牌方、垂直服务商</p>
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--gray200)">
+        <p style="font-size:14px;font-weight:600">核心功能</p>
+        <ul class="check-list" style="margin-top:8px">
+          <li>知识库 RAG（文档上传+AI问答）</li>
+          <li>内容工坊（模板+AI生成+编辑）</li>
+          <li>SEO 审计 + AI 修复建议</li>
+          <li>AEO 结构化检查</li>
+          <li>内容日历 + 定时发布</li>
+          <li>基础 Dashboard</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 进阶版 -->
+    <div class="card" style="border-top: 4px solid var(--purple);box-shadow:0 4px 24px rgba(124,58,237,.1)">
+      <span class="tag tag-purple" style="margin-bottom:12px;background:var(--purple);color:white">推荐</span>
+      <h3 style="font-size:24px">内容引擎</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">适合：跨境 B2B、出海 SaaS、外贸企业</p>
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--gray200)">
+        <p style="font-size:14px;font-weight:600">包含"内容基石"全部 +</p>
+        <ul class="check-list" style="margin-top:8px">
+          <li><strong>GEO 引擎适配（5 引擎）</strong></li>
+          <li>JSON-LD Schema 自动注入</li>
+          <li>AI 竞品内容分析</li>
+          <li>批量优化 + 批量发布</li>
+          <li>内容反馈统计（浏览/点击）</li>
+          <li>llms.txt 公网端点</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 旗舰版 -->
+    <div class="card" style="border-top: 4px solid var(--black)">
+      <span class="tag" style="margin-bottom:12px;background:var(--black);color:white">旗舰版</span>
+      <h3 style="font-size:24px">全域获客</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">适合：跨国集团、科技独角兽、全球化品牌</p>
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--gray200)">
+        <p style="font-size:14px;font-weight:600">包含"内容引擎"全部 +</p>
+        <ul class="check-list" style="margin-top:8px">
+          <li>全 10 大 AI 模型 GEO 覆盖</li>
+          <li><strong>AI 幻觉监测 + 负面拦截</strong></li>
+          <li>全球知识图谱实体卡位</li>
+          <li>专属 GEO 架构师季度审计</li>
+          <li>AI 独立站（定制模板）</li>
+          <li>获客雷达 + CRM 全流程</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer">所有方案均包含：团队协作（4 级权限）· 操作日志 · 通知系统 · API 接入</p>
+</section>
+
+<!-- ==================== SLIDE 7: 竞争优势 ==================== -->
+<section class="slide dark">
+  <div class="slide-label" style="color:#6b7280">06 / 为什么选择智客</div>
+  <h2>与普通服务商的本质区别</h2>
+
+  <div class="vs-row" style="margin-top:32px">
+    <div class="vs-col bad" style="background:#1a1a1a;border-color:#333">
+      <h3 style="color:var(--red);margin-bottom:16px">✗ 传统 SEO/建站服务商</h3>
+      <ul class="check-list" style="color:#ccc">
+        <li>仅聚焦搜索引擎排名，忽视 AI 生态</li>
+        <li>关键词堆砌 + 外链购买，效果短暂</li>
+        <li>建站和 SEO 分离，数据不互通</li>
+        <li>不提供内容策略和规划能力</li>
+        <li>对 AI 模型（ChatGPT/DeepSeek）无优化方案</li>
+        <li>按项目一次性交付，缺乏持续优化</li>
+      </ul>
+    </div>
+    <div class="vs-col good" style="background:#1a1a1a;border-color:#86efac;">
+      <h3 style="color:var(--green);margin-bottom:16px">✓ 智客 VertaX</h3>
+      <ul class="check-list" style="color:#ccc">
+        <li>SEO + AEO + GEO <strong style="color:#86efac">三端协同</strong>，覆盖全部流量入口</li>
+        <li><strong style="color:#86efac">内容工业化生产</strong>：策划→创作→优化→发布 全流程 SaaS</li>
+        <li>知识库 + 内容 + CRM <strong style="color:#86efac">数据互通</strong>，闭环优化</li>
+        <li><strong style="color:#86efac">AI 原生设计</strong>：从问题出发，为 AI 可引用而打造</li>
+        <li>覆盖 10+ AI 模型，<strong style="color:#86efac">全域可见</strong></li>
+        <li><strong style="color:#86efac">SaaS 订阅制</strong>：持续使用、持续优化、持续增长</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid-3" style="margin-top:40px">
+    <div style="text-align:center">
+      <div class="big-number" style="color:#a78bfa">4步</div>
+      <p style="font-size:14px;color:var(--gray400)">闭环工作流<br>策划·创作·优化·发布</p>
+    </div>
+    <div style="text-align:center">
+      <div class="big-number" style="color:#a78bfa">1键</div>
+      <p style="font-size:14px;color:var(--gray400)">SEO+AEO+GEO<br>三检同步完成</p>
+    </div>
+    <div style="text-align:center">
+      <div class="big-number" style="color:#a78bfa">10+</div>
+      <p style="font-size:14px;color:var(--gray400)">全球 AI 模型<br>全域覆盖追踪</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 8: 客户价值 ==================== -->
+<section class="slide gray">
+  <div class="slide-label">07 / 客户价值</div>
+  <h2>投资回报：短期见效，长期增值</h2>
+
+  <div class="grid-2" style="gap:28px">
+    <div class="card">
+      <span style="font-size:36px">⚡</span>
+      <h3 style="margin-top:8px">AI 内容生产效率提升 3-5 倍</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        AI 自动生成 + 模板化创作 + 批量操作，一个人干一个团队的活
+      </p>
+    </div>
+    <div class="card">
+      <span style="font-size:36px">🎯</span>
+      <h3 style="margin-top:8px">AI 推荐率提升 3-8 倍</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        完成结构化优化后最快 2 周看到 AI 提及率变化，海外订单显著增长
+      </p>
+    </div>
+    <div class="card">
+      <span style="font-size:36px">🛡️</span>
+      <h3 style="margin-top:8px">品牌叙事权100% 可控</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        确保 AI 抓取的是你的官方准确信息，杜绝第三方虚假内容误导客户
+      </p>
+    </div>
+    <div class="card">
+      <span style="font-size:36px">📈</span>
+      <h3 style="margin-top:8px">存量内容资产 最大化利用</h3>
+      <p style="font-size:14px;color:var(--gray500);margin-top:4px">
+        现有官网、白皮书、案例等经过结构化改造，适配 AI 检索逻辑，持续产生长尾价值
+      </p>
+    </div>
+  </div>
+
+  <div style="margin-top:36px;background:var(--white);border:1px solid var(--gray200);border-radius:16px;padding:28px">
+    <p style="font-size:15px;font-weight:600;text-align:center;margin-bottom:20px">📅 典型见效周期</p>
+    <div class="grid-3" style="text-align:center">
+      <div>
+        <div class="stat" style="font-size:32px">2 周</div>
+        <p style="font-size:13px;color:var(--gray500);margin-top:4px">看到 AI 提及率<br>初步变化</p>
+      </div>
+      <div>
+        <div class="stat" style="font-size:32px">1-3 月</div>
+        <p style="font-size:13px;color:var(--gray500);margin-top:4px">完整优化周期<br>效果显著</p>
+      </div>
+      <div>
+        <div class="stat" style="font-size:32px">持续</div>
+        <p style="font-size:13px;color:var(--gray500);margin-top:4px">跟随 AI 模型更新<br>实时调整策略</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 9: CTA ==================== -->
+<section class="slide gradient" style="text-align:center">
+  <div class="slide-label" style="color:#6b7280">08 / 立即行动</div>
+  <h2>不要让你的品牌<br>在 AI 时代缺席</h2>
+  <p style="font-size:20px;color:#a78bfa;margin-top:16px">
+    75% 的决策场景已被 AI 接管 —— 你的客户正在用 AI 寻找供应商
+  </p>
+  <p style="font-size:18px;color:#9ca3af;margin-top:8px">
+    你的品牌，在答案里吗？
+  </p>
+
+  <div class="grid-2" style="max-width:600px;margin:48px auto 0;gap:32px">
+    <div class="card" style="background:#1a1a1a;border-color:#333">
+      <span style="font-size:32px">🔍</span>
+      <h3 style="margin-top:8px">免费 AI 健康诊断</h3>
+      <p style="font-size:14px;color:var(--gray400);margin-top:4px">
+        立即检测你的官网在 ChatGPT/DeepSeek 等 AI 模型中的可见性
+      </p>
+    </div>
+    <div class="card" style="background:#1a1a1a;border-color:#333">
+      <span style="font-size:32px">🎯</span>
+      <h3 style="margin-top:8px">预约产品演示</h3>
+      <p style="font-size:14px;color:var(--gray400);margin-top:4px">
+        30 分钟线上演示，看看智客如何为你的品牌构建 AI 获客引擎
+      </p>
+    </div>
+  </div>
+
+  <div style="margin-top:40px">
+    <a href="https://www.caosir118.online" class="cta-btn" style="background:white;color:var(--black);margin-right:16px">立即访问官网</a>
+    <a href="https://www.caosir118.online/register" class="cta-btn">免费注册体验</a>
+  </div>
+
+  <p class="footer" style="color:#4b5563;margin-top:48px">
+    智客 VertaX &nbsp;·&nbsp; AI 内容获客，从第一篇文章开始 &nbsp;·&nbsp; www.caosir118.online
+  </p>
+</section>
+
+</body>
+</html>
