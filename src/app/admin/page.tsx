@@ -112,7 +112,7 @@ function MonthlyChart({ data }: { data: MonthlyData }) {
 /* ========== 页面主体 ========== */
 
 export default function AdminPage() {
-  const [tab, setTab] = useState<"overview" | "tenants" | "users">("overview");
+  const [tab, setTab] = useState<"overview" | "tenants" | "users" | "logs" | "loginLogs">("overview");
 
   // 概览
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -132,10 +132,25 @@ export default function AdminPage() {
   const [userSearch, setUserSearch] = useState("");
   const [userLoading, setUserLoading] = useState(false);
 
+  // 操作日志
+  const [activityLogs, setActivityLogs] = useState<{ id: string; team_id: string; user_id: string; user_name: string; action: string; target: string; details: string; created_at: string }[]>([]);
+  const [logSearch, setLogSearch] = useState("");
+  const [logTeamFilter, setLogTeamFilter] = useState("");
+  const [logUserFilter, setLogUserFilter] = useState("");
+  const [logLoading, setLogLoading] = useState(false);
+
+  // 登录记录
+  const [loginLogs, setLoginLogs] = useState<{ id: string; user_id: string; email: string; team_id: string; success: boolean; ip_address: string; user_agent: string; error_reason: string; created_at: string }[]>([]);
+  const [loginLogSearch, setLoginLogSearch] = useState("");
+  const [loginLogFilter, setLoginLogFilter] = useState(""); // "all", "success", "failed"
+  const [loginLogLoading, setLoginLogLoading] = useState(false);
+
   useEffect(() => {
     if (tab === "overview") { loadStats(); loadMonthly(); }
     if (tab === "tenants") loadTenants();
     if (tab === "users") loadUsers();
+    if (tab === "logs") loadActivityLogs();
+    if (tab === "loginLogs") loadLoginLogs();
   }, [tab, planFilter, statusFilter]);
 
   /* ========== 概览 ========== */
@@ -245,6 +260,37 @@ export default function AdminPage() {
     } catch { toast.error("操作失败"); }
   }
 
+  /* ========== 日志 ========== */
+
+  async function loadActivityLogs() {
+    setLogLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (logSearch) params.set("search", logSearch);
+      if (logTeamFilter) params.set("team_id", logTeamFilter);
+      if (logUserFilter) params.set("user_id", logUserFilter);
+      params.set("limit", "200");
+      const res = await fetch(`/api/admin/activity-logs?${params}`);
+      const json = await res.json();
+      if (json.data) setActivityLogs(json.data);
+    } catch { /* ignore */ }
+    finally { setLogLoading(false); }
+  }
+
+  async function loadLoginLogs() {
+    setLoginLogLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (loginLogSearch) params.set("email", loginLogSearch);
+      if (loginLogFilter && loginLogFilter !== "all") params.set("success", loginLogFilter);
+      params.set("limit", "200");
+      const res = await fetch(`/api/admin/login-logs?${params}`);
+      const json = await res.json();
+      if (json.data) setLoginLogs(json.data);
+    } catch { /* ignore */ }
+    finally { setLoginLogLoading(false); }
+  }
+
   /* ========== 渲染 ========== */
 
   return (
@@ -257,6 +303,8 @@ export default function AdminPage() {
           ["overview", "概览"],
           ["tenants", "租户管理"],
           ["users", "用户管理"],
+          ["logs", "操作日志"],
+          ["loginLogs", "登录记录"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -538,6 +586,141 @@ export default function AdminPage() {
               ))}
               {users.length === 0 && (
                 <div className="text-center py-16"><p className="text-sm text-zinc-400">没有找到匹配的用户</p></div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========== 操作日志标签 ========== */}
+      {tab === "logs" && (
+        <div>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <input
+              type="text"
+              value={logSearch}
+              onChange={(e) => setLogSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") loadActivityLogs(); }}
+              placeholder="搜索用户名/操作/详情..."
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-56"
+            />
+            <input
+              type="text"
+              value={logTeamFilter}
+              onChange={(e) => setLogTeamFilter(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") loadActivityLogs(); }}
+              placeholder="团队 ID..."
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-36"
+            />
+            <input
+              type="text"
+              value={logUserFilter}
+              onChange={(e) => setLogUserFilter(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") loadActivityLogs(); }}
+              placeholder="用户 ID..."
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-36"
+            />
+            <button onClick={loadActivityLogs} className="text-xs text-zinc-400 hover:text-zinc-600">搜索</button>
+            <span className="text-xs text-zinc-400">{activityLogs.length} 条记录</span>
+          </div>
+
+          {logLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-zinc-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 bg-zinc-50 text-left">
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">时间</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">用户</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">操作</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">对象</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">详情</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">团队</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityLogs.map((log) => (
+                    <tr key={log.id} className="border-b border-zinc-100 hover:bg-zinc-50/50">
+                      <td className="px-4 py-2.5 text-xs text-zinc-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString("zh-CN")}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs font-medium text-black">{log.user_name || "-"}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700">{log.action}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-zinc-500 max-w-[120px] truncate">{log.target || "-"}</td>
+                      <td className="px-4 py-2.5 text-xs text-zinc-500 max-w-[200px] truncate">{log.details || "-"}</td>
+                      <td className="px-4 py-2.5 text-xs text-zinc-400 font-mono">{log.team_id?.slice(0, 8) || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {activityLogs.length === 0 && (
+                <div className="text-center py-16"><p className="text-sm text-zinc-400">暂无操作日志</p></div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========== 登录记录标签 ========== */}
+      {tab === "loginLogs" && (
+        <div>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <input
+              type="text"
+              value={loginLogSearch}
+              onChange={(e) => setLoginLogSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") loadLoginLogs(); }}
+              placeholder="搜索邮箱..."
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:border-black w-48"
+            />
+            <select value={loginLogFilter} onChange={(e) => setLoginLogFilter(e.target.value)} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none">
+              <option value="all">全部</option>
+              <option value="true">成功</option>
+              <option value="false">失败</option>
+            </select>
+            <button onClick={loadLoginLogs} className="text-xs text-zinc-400 hover:text-zinc-600">搜索</button>
+            <span className="text-xs text-zinc-400">{loginLogs.length} 条记录</span>
+          </div>
+
+          {loginLogLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-zinc-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 bg-zinc-50 text-left">
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">时间</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">邮箱</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">状态</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">IP 地址</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">失败原因</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginLogs.map((log) => (
+                    <tr key={log.id} className="border-b border-zinc-100 hover:bg-zinc-50/50">
+                      <td className="px-4 py-2.5 text-xs text-zinc-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString("zh-CN")}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs font-medium text-black">{log.email}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          log.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                        }`}>
+                          {log.success ? "成功" : "失败"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-zinc-500 font-mono">{log.ip_address || "-"}</td>
+                      <td className="px-4 py-2.5 text-xs text-zinc-400 max-w-[200px] truncate">{log.error_reason || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {loginLogs.length === 0 && (
+                <div className="text-center py-16"><p className="text-sm text-zinc-400">暂无登录记录</p></div>
               )}
             </div>
           )}
