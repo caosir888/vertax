@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity-logger";
 import { TRIAL_DAYS } from "@/lib/plans";
 import bcrypt from "bcryptjs";
 
@@ -80,6 +81,30 @@ export async function POST(request: NextRequest) {
   } catch {
     // cookie 设置失败不影响注册结果（用户可手动登录）
   }
+
+  // 记录注册自动登录
+  const ua = request.headers.get("user-agent") || "";
+  try {
+    await getSupabase().from("login_logs").insert({
+      user_id: user.id,
+      email,
+      team_id: team.id,
+      success: true,
+      ip_address: ip,
+      user_agent: ua,
+      error_reason: "",
+    });
+  } catch (e: any) {
+    console.error("[login_logs] 注册登录写入失败:", e?.message || e);
+  }
+  logActivity({
+    team_id: team.id,
+    user_id: user.id,
+    user_name: user.name,
+    action: "用户注册",
+    target: "系统",
+    details: `用户 ${email} 注册并自动登录，IP: ${ip}`,
+  });
 
   // 异步发送欢迎邮件（不影响响应速度）
   import("@/lib/email").then((m) => m.sendWelcomeEmail(email, name)).catch(() => {});

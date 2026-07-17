@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { setSessionCookie } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity-logger";
 import bcrypt from "bcryptjs";
 
 async function logLogin(params: {
@@ -23,8 +24,8 @@ async function logLogin(params: {
       user_agent: params.ua,
       error_reason: params.reason || "",
     });
-  } catch {
-    // 日志记录失败不影响登录流程
+  } catch (e: any) {
+    console.error("[login_logs] 写入失败:", e?.message || e, JSON.stringify(params));
   }
 }
 
@@ -87,6 +88,18 @@ export async function POST(request: NextRequest) {
     ip,
     ua,
   });
+
+  // 同步写入 activity_logs，确保登录记录在操作日志中可见
+  if (membership?.team_id) {
+    logActivity({
+      team_id: membership.team_id,
+      user_id: user.id,
+      user_name: user.name || email,
+      action: "用户登录",
+      target: "系统",
+      details: `用户 ${email} 登录成功，IP: ${ip}`,
+    });
+  }
 
   return NextResponse.json({ data: sessionUser });
 }
