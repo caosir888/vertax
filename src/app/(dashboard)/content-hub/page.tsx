@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronDown, Check, Loader2, Sparkles, ExternalLink, FileText, Globe, BarChart3, Copy, Eye, Clock } from "lucide-react";
+import { ChevronRight, ChevronDown, Check, Loader2, Sparkles, ExternalLink, FileText, Globe, BarChart3, Copy, Eye, Clock, Download, FileDown } from "lucide-react";
 import { templates, languages } from "@/lib/templates";
 import { Toaster, toast } from "sonner";
 
@@ -103,6 +103,36 @@ export default function ContentHubPage() {
   const [publishForm, setPublishForm] = useState({ platform: "website", url: "", notes: "", scheduledAt: "" });
   const [publishResult, setPublishResult] = useState<{ platform: string; url: string; scheduled?: boolean; scheduled_at?: string } | null>(null);
   const [showSchema, setShowSchema] = useState(false);
+
+  // 竞品分析
+  const [showCompetitive, setShowCompetitive] = useState(false);
+  const [compInput, setCompInput] = useState({ url: "", content: "" });
+  const [compResult, setCompResult] = useState<Record<string, unknown> | null>(null);
+  const [compLoading, setCompLoading] = useState(false);
+
+  async function runCompetitiveAnalysis() {
+    if (!compInput.url && !compInput.content) { toast.error("请输入竞品 URL 或粘贴内容"); return; }
+    setCompLoading(true);
+    try {
+      const res = await fetch("/api/content-hub/competitive-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitor_url: compInput.url || undefined,
+          competitor_content: compInput.content || undefined,
+          my_content: generatedContent || undefined,
+          my_topic: planData ? `${Object.values(planData).flat().map((q: Question) => q.question).join(", ")}` : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setCompResult(json.data);
+      } else {
+        toast.error(json.error || "分析失败");
+      }
+    } catch { toast.error("分析请求失败"); }
+    finally { setCompLoading(false); }
+  }
 
   // Analytics data for the published content
   const [analytics, setAnalytics] = useState<{
@@ -257,6 +287,39 @@ export default function ContentHubPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // ====== 导出 ======
+  function handleExportMarkdown() {
+    const title = contentTitle || "未命名";
+    const md = `# ${title}\n\n${generatedContent}\n`;
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title.replace(/[<>:"/\\|?*]/g, "_")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Markdown 已下载");
+  }
+
+  function handleExportPDF() {
+    const title = contentTitle || "未命名";
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #1a1a1a; line-height: 1.8; }
+  h1 { font-size: 24px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+  p, li { font-size: 14px; }
+  @media print { body { margin: 0; padding: 20px; } }
+</style></head><body>
+<h1>${title}</h1>
+${generatedContent.replace(/\n/g, "<br>").replace(/#{1,6}\s?(.+)/g, "<h2>$1</h2>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")}
+</body></html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const w = window.open("", "_blank")!;
+    w.document.write(URL.createObjectURL(blob));
+    // wait for write
+    setTimeout(() => { w.document.close(); }, 300);
   }
 
   // ====== 自定义模板管理 ======
@@ -730,6 +793,18 @@ export default function ContentHubPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleExportMarkdown}
+                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:text-black hover:bg-zinc-100"
+                >
+                  <Download className="h-3 w-3" />MD
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:text-black hover:bg-zinc-100"
+                >
+                  <FileDown className="h-3 w-3" />PDF
+                </button>
+                <button
                   onClick={() => { navigator.clipboard.writeText(generatedContent); toast.success("已复制"); }}
                   className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-500 hover:text-black hover:bg-zinc-100"
                 >
@@ -1186,9 +1261,151 @@ export default function ContentHubPage() {
   return (
     <div className="p-6 lg:p-8 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-black">智能内容中心</h1>
-        <p className="text-sm text-zinc-500 mt-1">策划 → 创作 → 优化 → 发布&监测，SEO/AEO/GEO 三位一体</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-black">智能内容中心</h1>
+            <p className="text-sm text-zinc-500 mt-1">策划 → 创作 → 优化 → 发布&监测，SEO/AEO/GEO 三位一体</p>
+          </div>
+          <button
+            onClick={() => setShowCompetitive(!showCompetitive)}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+              showCompetitive ? "border-black bg-black text-white" : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            竞品分析
+          </button>
+        </div>
       </div>
+
+      {/* 竞品分析面板 */}
+      {showCompetitive && (
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h3 className="text-sm font-bold text-black mb-3 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            竞品内容分析
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">竞品 URL（可选）</label>
+              <input
+                type="url"
+                value={compInput.url}
+                onChange={(e) => setCompInput({ ...compInput, url: e.target.value })}
+                placeholder="https://competitor.com/article"
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">或粘贴竞品内容</label>
+              <textarea
+                value={compInput.content}
+                onChange={(e) => setCompInput({ ...compInput, content: e.target.value })}
+                placeholder="粘贴竞品文章的标题和正文..."
+                rows={3}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none"
+              />
+            </div>
+          </div>
+          <button
+            onClick={runCompetitiveAnalysis}
+            disabled={compLoading}
+            className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {compLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            AI 分析竞品
+          </button>
+
+          {/* 分析结果 */}
+          {compResult && (
+            <div className="mt-4 space-y-4 pt-4 border-t border-zinc-100">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* 结构分析 */}
+                <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                  <h4 className="text-xs font-semibold text-zinc-500 mb-2 uppercase">结构分析</h4>
+                  <div className="space-y-1.5 text-sm">
+                    {(compResult.structure_analysis as Record<string, unknown>) && Object.entries(compResult.structure_analysis as Record<string, unknown>).map(([k, v]) => (
+                      <div key={k} className="flex justify-between">
+                        <span className="text-zinc-500">{k}</span>
+                        <span className="font-medium text-black">{String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* SEO 分析 */}
+                <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                  <h4 className="text-xs font-semibold text-zinc-500 mb-2 uppercase">SEO 分析</h4>
+                  <div className="space-y-1.5 text-sm">
+                    {(compResult.seo_analysis as Record<string, unknown>) && Object.entries(compResult.seo_analysis as Record<string, unknown>).map(([k, v]) => (
+                      <div key={k} className="flex justify-between">
+                        <span className="text-zinc-500">{k}</span>
+                        <span className="font-medium text-black">{Array.isArray(v) ? (v as string[]).join(", ") : String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* 质量评估 */}
+                <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                  <h4 className="text-xs font-semibold text-zinc-500 mb-2 uppercase">内容质量</h4>
+                  <div className="space-y-1.5 text-sm">
+                    {(compResult.content_quality as Record<string, unknown>) && Object.entries(compResult.content_quality as Record<string, unknown>).map(([k, v]) => (
+                      <div key={k} className="flex justify-between">
+                        <span className="text-zinc-500">{k}</span>
+                        <span className={`font-medium ${
+                          v === "high" ? "text-green-600" : v === "medium" ? "text-yellow-600" : "text-red-500"
+                        }`}>{String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 优势 & 弱点 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-green-100 bg-green-50 p-3">
+                  <h4 className="text-xs font-semibold text-green-700 mb-1">竞品优势</h4>
+                  <ul className="text-sm text-green-800 space-y-0.5">
+                    {(compResult.strengths as string[] || []).map((s: string, i: number) => (
+                      <li key={i}>+ {s}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-red-100 bg-red-50 p-3">
+                  <h4 className="text-xs font-semibold text-red-700 mb-1">竞品弱点</h4>
+                  <ul className="text-sm text-red-800 space-y-0.5">
+                    {(compResult.weaknesses as string[] || []).map((s: string, i: number) => (
+                      <li key={i}>- {s}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* 差距分析 */}
+              {!!compResult.our_gap_analysis && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                  <h4 className="text-xs font-semibold text-blue-700 mb-1">差距与方向</h4>
+                  <p className="text-sm text-blue-800">{compResult.our_gap_analysis as string}</p>
+                </div>
+              )}
+
+              {/* 可执行建议 */}
+              {Array.isArray(compResult.actionable_tips) && (
+                <div className="rounded-lg border border-zinc-200 p-3">
+                  <h4 className="text-xs font-semibold text-black mb-2">可执行改进建议</h4>
+                  <div className="space-y-1.5">
+                    {(compResult.actionable_tips as string[] || []).map((tip: string, i: number) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <span className="rounded-full bg-black text-white text-xs w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                        <span className="text-zinc-700">{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {renderStepIndicator()}
 
