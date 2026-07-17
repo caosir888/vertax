@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Sparkles, Loader2, BarChart3 } from "lucide-react";
 import { templates, languages, type Template } from "@/lib/templates";
 import {
   Sheet,
@@ -105,6 +106,12 @@ export default function ContentPage() {
   // 批量操作
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+
+  // 竞品分析
+  const [showCompetitive, setShowCompetitive] = useState(false);
+  const [compInput, setCompInput] = useState({ url: "", content: "" });
+  const [compResult, setCompResult] = useState<Record<string, unknown> | null>(null);
+  const [compLoading, setCompLoading] = useState(false);
 
   // 分析
   const [analytics, setAnalytics] = useState<ContentAnalytics | null>(null);
@@ -265,6 +272,22 @@ export default function ContentPage() {
       loadItems();
     } catch { toast.error("批量发布失败"); }
     finally { setBatchLoading(false); }
+  }
+
+  async function runCompetitiveAnalysis() {
+    if (!compInput.url && !compInput.content) { toast.error("请输入竞品 URL 或粘贴内容"); return; }
+    setCompLoading(true);
+    try {
+      const res = await fetch("/api/content-hub/competitive-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitor_url: compInput.url || undefined, competitor_content: compInput.content || undefined }),
+      });
+      const json = await res.json();
+      if (json.data) setCompResult(json.data);
+      else toast.error(json.error || "分析失败");
+    } catch { toast.error("分析请求失败"); }
+    finally { setCompLoading(false); }
   }
 
   function loadFromLibrary(item: ContentItem) {
@@ -451,7 +474,78 @@ export default function ContentPage() {
               选择内容模板，输入产品或主题信息，AI 自动生成多版本文案
             </p>
           </div>
+          <button
+            onClick={() => setShowCompetitive(!showCompetitive)}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+              showCompetitive ? "border-black bg-black text-white" : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            竞品分析
+          </button>
         </div>
+
+        {/* 竞品分析面板 */}
+        {showCompetitive && (
+          <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-5">
+            <h3 className="text-sm font-bold text-black mb-3 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />竞品内容分析
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <input type="url" value={compInput.url} onChange={(e) => setCompInput({ ...compInput, url: e.target.value })}
+                placeholder="竞品 URL（可选）" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <textarea value={compInput.content} onChange={(e) => setCompInput({ ...compInput, content: e.target.value })}
+                placeholder="或直接粘贴竞品内容..." rows={3} className="rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none" />
+            </div>
+            <button onClick={runCompetitiveAnalysis} disabled={compLoading}
+              className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+              {compLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}AI 分析竞品
+            </button>
+            {compResult && (
+              <div className="mt-4 pt-4 border-t border-zinc-100 space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  {(["structure_analysis", "seo_analysis", "content_quality"] as const).map((key) => (
+                    <div key={key} className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                      <h4 className="text-xs font-semibold text-zinc-500 mb-1.5 uppercase">{key === "structure_analysis" ? "结构" : key === "seo_analysis" ? "SEO" : "质量"}</h4>
+                      <div className="space-y-1 text-xs">
+                        {compResult[key] != null && (() => {
+                          const entries = Object.entries(compResult[key] as Record<string, unknown>);
+                          return entries.map(([k2, v2]) => (
+                            <div key={k2} className="flex justify-between"><span className="text-zinc-400">{k2}</span><span className="font-medium text-black">{Array.isArray(v2) ? v2.join(", ") : String(v2)}</span></div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-green-100 bg-green-50 p-3">
+                    <h4 className="text-xs font-semibold text-green-700 mb-1">优势</h4>
+                    {(compResult.strengths as string[] || []).map((s, i) => <p key={i} className="text-xs text-green-800">+ {s}</p>)}
+                  </div>
+                  <div className="rounded-lg border border-red-100 bg-red-50 p-3">
+                    <h4 className="text-xs font-semibold text-red-700 mb-1">弱点</h4>
+                    {(compResult.weaknesses as string[] || []).map((s, i) => <p key={i} className="text-xs text-red-800">- {s}</p>)}
+                  </div>
+                </div>
+                {!!compResult.our_gap_analysis && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    <h4 className="text-xs font-semibold text-blue-700 mb-1">差距与方向</h4>
+                    <p className="text-sm text-blue-800">{compResult.our_gap_analysis as string}</p>
+                  </div>
+                )}
+                {Array.isArray(compResult.actionable_tips) && (
+                  <div className="rounded-lg border border-zinc-200 p-3">
+                    <h4 className="text-xs font-semibold text-black mb-2">改进建议</h4>
+                    {(compResult.actionable_tips as string[]).map((t, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm"><span className="rounded-full bg-black text-white text-xs w-5 h-5 flex items-center justify-center shrink-0">{i + 1}</span><span className="text-zinc-700">{t}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 视图切换 */}
         <div className="mt-6 flex gap-2">
