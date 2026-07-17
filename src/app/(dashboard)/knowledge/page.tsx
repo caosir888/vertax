@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+/* ========== 类型 ========== */
 
 interface Document {
   id: string;
@@ -17,6 +16,10 @@ interface Document {
   file_size: number;
   file_type: string;
   status: string;
+  source_url: string;
+  content_text: string;
+  chunk_count: number;
+  original_filename: string;
   created_at: string;
 }
 
@@ -27,20 +30,42 @@ interface KnowledgeBase {
   created_at: string;
 }
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  ready: { label: "待解析", color: "bg-zinc-100 text-zinc-600" },
-  processing: { label: "解析中", color: "bg-blue-100 text-blue-700" },
-  done: { label: "已解析", color: "bg-green-100 text-green-700" },
-  error: { label: "失败", color: "bg-red-100 text-red-700" },
+/* ========== 常量 ========== */
+
+const STATUS_TABS = [
+  { key: "", label: "全部" },
+  { key: "done", label: "已就绪" },
+  { key: "processing", label: "处理中" },
+  { key: "ready", label: "未处理" },
+  { key: "failed", label: "失败" },
+];
+
+const STATUS_LABELS: Record<string, string> = {
+  ready: "未处理",
+  processing: "处理中",
+  done: "已就绪",
+  error: "失败",
+  failed: "失败",
 };
 
-const typeLabels: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
+  ready: "bg-zinc-100 text-zinc-600",
+  processing: "bg-blue-100 text-blue-700",
+  done: "bg-green-100 text-green-700",
+  error: "bg-red-100 text-red-600",
+  failed: "bg-red-100 text-red-600",
+};
+
+const TYPE_LABELS: Record<string, string> = {
   "application/pdf": "PDF",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
   "application/msword": "Word",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PPT",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
   "text/plain": "TXT",
   "text/markdown": "MD",
   "text/x-markdown": "MD",
+  "webpage": "网页",
 };
 
 function formatSize(bytes: number): string {
@@ -49,31 +74,37 @@ function formatSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+function formatTime(dateStr: string) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/* ========== 主页面 ========== */
+
 export default function KnowledgePage() {
+  const [activeTab, setActiveTab] = useState<"upload" | "fetch">("upload");
   const [docs, setDocs] = useState<Document[]>([]);
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
-  const [selectedKbId, setSelectedKbId] = useState<string>("");
+  const [selectedKbId, setSelectedKbId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  const [delOpen, setDelOpen] = useState(false);
-  const [delId, setDelId] = useState("");
-  const [kbOpen, setKbOpen] = useState(false);
-  const [kbForm, setKbForm] = useState({ name: "", description: "" });
-  const [kbDelOpen, setKbDelOpen] = useState(false);
-  const [kbDelId, setKbDelId] = useState("");
-  const [renamingKbId, setRenamingKbId] = useState("");
-  const [renamingName, setRenamingName] = useState("");
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 弹窗状态
+  const [kbOpen, setKbOpen] = useState(false);
+  const [kbForm, setKbForm] = useState({ name: "", description: "" });
+  const [showText, setShowText] = useState<Document | null>(null);
+  const [fetchUrl, setFetchUrl] = useState("");
+  const [fetching, setFetching] = useState(false);
+  const [renamingKbId, setRenamingKbId] = useState("");
+  const [renamingName, setRenamingName] = useState("");
+
   useEffect(() => { loadKbs(); }, []);
-
-  useEffect(() => {
-    if (kbs.length > 0 && !selectedKbId) {
-      setSelectedKbId(kbs[0].id);
-    }
-  }, [kbs]);
-
+  useEffect(() => { if (kbs.length > 0 && !selectedKbId) setSelectedKbId(kbs[0].id); }, [kbs]);
   useEffect(() => { loadDocs(); }, [selectedKbId]);
 
   async function loadKbs() {
@@ -96,415 +127,321 @@ export default function KnowledgePage() {
     finally { setLoading(false); }
   }
 
+  /* ---- 上传 ---- */
   const doUpload = useCallback(async (file: File) => {
-    if (!selectedKbId) {
-      toast.error("请先选择或创建一个知识库");
-      return;
-    }
+    if (!selectedKbId) { toast.error("请先选择知识库"); return; }
     setUploading(true);
     try {
-      // 客户端直传 Supabase Storage，绕过 Vercel 4.5MB 限制
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
-      const userRes = await fetch("/api/auth/me").then(r => r.json());
+      const userRes = await fetch("/api/auth/me").then((r) => r.json());
       const teamId = userRes.data?.team_id;
       if (!teamId) { toast.error("获取团队信息失败"); return; }
 
-      // 文件名转 ASCII 安全格式，避免 Supabase Storage "Invalid key" 错误
       const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
       const safeName = Date.now() + (ext ? "." + ext : "");
       const filePath = `${teamId}/${safeName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(filePath, file, { contentType: file.type, upsert: false });
-
-      if (uploadError) {
-        toast.error("上传失败: " + uploadError.message);
-        return;
-      }
+      const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file, { contentType: file.type, upsert: false });
+      if (uploadError) { toast.error("上传失败: " + uploadError.message); return; }
 
       const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath);
-
-      // 通知后端创建数据库记录
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: file.name,
-          file_url: urlData.publicUrl,
-          file_size: file.size,
-          file_type: file.type || file.name.split(".").pop() || "",
-          knowledge_base_id: selectedKbId,
-        }),
+        body: JSON.stringify({ name: file.name, file_url: urlData.publicUrl, file_size: file.size, file_type: file.type || ext || "", knowledge_base_id: selectedKbId }),
       });
       const json = await res.json();
-      if (json.error) {
-        toast.error(json.error);
-      } else {
-        toast.success(`"${file.name}" 上传成功`);
-        loadDocs();
-      }
-    } catch {
-      toast.error("上传失败，请重试");
-    } finally {
-      setUploading(false);
-    }
+      if (json.error) { toast.error(json.error); return; }
+      toast.success(`"${file.name}" 上传成功`);
+      loadDocs();
+    } catch { toast.error("上传失败"); }
+    finally { setUploading(false); }
   }, [selectedKbId]);
 
-  function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) doUpload(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) doUpload(file);
-  }
+  function onDrop(e: React.DragEvent) { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) doUpload(f); }
 
   async function parseDoc(docId: string) {
-    toast.info("开始解析文档...");
-    try {
-      const res = await fetch(`/api/documents/${docId}/parse`, { method: "POST" });
-      const json = await res.json();
-      if (json.error) {
-        toast.error(json.error);
-      } else {
-        toast.success(`解析完成！共 ${json.data.chunk_count} 个文本块`);
-        loadDocs();
-      }
-    } catch {
-      toast.error("解析失败");
-    }
+    toast.info("开始解析...");
+    const res = await fetch(`/api/documents/${docId}/parse`, { method: "POST" });
+    const json = await res.json();
+    if (json.error) toast.error(json.error);
+    else { toast.success(`解析完成！${json.data.chunk_count} 个文本块`); loadDocs(); }
   }
 
-  async function deleteDoc() {
-    try {
-      const res = await fetch(`/api/documents/${delId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.error) toast.error(json.error);
-      else { toast.success("文档已删除"); loadDocs(); }
-    } catch {
-      toast.error("删除失败");
-    }
+  async function deleteDoc(id: string) {
+    if (!confirm("确定删除？")) return;
+    await fetch(`/api/documents/${id}`, { method: "DELETE" });
+    toast.success("已删除");
+    loadDocs();
   }
 
-  async function embedDoc(docId: string) {
-    toast.info("正在向量化...");
+  /* ---- 网站智采 ---- */
+  async function handleFetchUrl() {
+    if (!fetchUrl.trim()) { toast.error("请输入网址"); return; }
+    if (!selectedKbId) { toast.error("请先选择知识库"); return; }
+    setFetching(true);
     try {
-      const res = await fetch(`/api/documents/${docId}/embed`, { method: "POST" });
-      const json = await res.json();
-      if (json.error) {
-        toast.error(json.error);
-      } else {
-        toast.success(`向量化完成！${json.data?.chunk_count ?? 0} 个分块，${json.data?.dimensions ?? 0} 维`);
-      }
-    } catch {
-      toast.error("向量化失败");
-    }
-  }
-
-  async function createKb() {
-    if (!kbForm.name.trim()) {
-      toast.error("请输入知识库名称");
-      return;
-    }
-    try {
-      const res = await fetch("/api/knowledge-bases", {
+      const res = await fetch("/api/documents/fetch-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(kbForm),
+        body: JSON.stringify({ url: fetchUrl.trim(), knowledge_base_id: selectedKbId }),
       });
       const json = await res.json();
-      if (json.error) {
-        toast.error(json.error);
-      } else {
-        toast.success("知识库创建成功");
-        setKbForm({ name: "", description: "" });
-        setKbOpen(false);
-        loadKbs();
-        setSelectedKbId(json.data.id);
-      }
-    } catch {
-      toast.error("创建失败");
-    }
+      if (json.error) { toast.error(json.error); return; }
+      toast.success(`已采集：${json.data.name}`);
+      setFetchUrl("");
+      loadDocs();
+    } catch { toast.error("采集失败"); }
+    finally { setFetching(false); }
   }
 
-  async function deleteKb(kbId: string) {
-    try {
-      const res = await fetch(`/api/knowledge-bases/${kbId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.error) toast.error(json.error);
-      else {
-        toast.success("知识库已删除");
-        if (selectedKbId === kbId) setSelectedKbId("");
-        loadKbs();
-      }
-    } catch {
-      toast.error("删除失败");
-    }
+  /* ---- 知识库管理 ---- */
+  async function createKb() {
+    if (!kbForm.name.trim()) { toast.error("请输入名称"); return; }
+    const res = await fetch("/api/knowledge-bases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(kbForm) });
+    const json = await res.json();
+    if (json.error) toast.error(json.error);
+    else { toast.success("已创建"); setKbForm({ name: "", description: "" }); setKbOpen(false); loadKbs(); setSelectedKbId(json.data.id); }
   }
 
   async function renameKb(kbId: string, newName: string) {
     if (!newName.trim()) return;
-    try {
-      await fetch(`/api/knowledge-bases/${kbId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
-      });
-      toast.success("已重命名");
-      loadKbs();
-    } catch {
-      toast.error("重命名失败");
-    }
+    await fetch(`/api/knowledge-bases/${kbId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newName.trim() }) });
+    toast.success("已重命名");
+    loadKbs();
   }
 
+  async function deleteKb(kbId: string) {
+    if (!confirm("确定删除此知识库？")) return;
+    await fetch(`/api/knowledge-bases/${kbId}`, { method: "DELETE" });
+    toast.success("已删除");
+    if (selectedKbId === kbId) setSelectedKbId("");
+    loadKbs();
+  }
+
+  /* ---- 数据筛选 ---- */
+  let filteredDocs = docs;
+  if (statusFilter) {
+    filteredDocs = filteredDocs.filter((d) => {
+      if (statusFilter === "failed") return d.status === "error" || d.status === "failed";
+      return d.status === statusFilter;
+    });
+  }
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    filteredDocs = filteredDocs.filter((d) => d.name.toLowerCase().includes(q) || d.source_url?.toLowerCase().includes(q));
+  }
+
+  const processingCount = docs.filter((d) => d.status === "processing").length;
+  const kb = kbs.find((k) => k.id === selectedKbId);
+
   return (
-    <div className="px-4 py-8 sm:px-8 sm:py-12">
-      <div className="mx-auto max-w-3xl">
-        {/* 顶部：标题 + 知识库选择 */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-black">知识库</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              上传文档，AI 自动解析并向量化用于智能问答
-            </p>
+    <div className="space-y-5 max-w-4xl">
+      {/* 标题 */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-xl font-bold text-zinc-900">资料库</h1>
+            <span className="text-xs text-zinc-400">{kb?.name || "选择知识库"}</span>
           </div>
-          <a
-            href="/knowledge/chat"
-            className="shrink-0 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition-colors"
-          >
-            AI 问答
-          </a>
+          <p className="text-sm text-zinc-500">上传企业资料，系统自动解析提取文本内容</p>
         </div>
+        <a href="/knowledge/chat" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">AI 问答</a>
+      </div>
 
-        {/* 知识库选择器 */}
-        <div className="mt-6 flex items-center gap-3 flex-wrap">
-          <span className="text-sm text-zinc-500">当前知识库：</span>
-          {kbs.length === 0 ? (
-            <p className="text-sm text-zinc-400">暂无知识库，请先创建</p>
-          ) : (
-            <select
-              value={selectedKbId}
-              onChange={(e) => setSelectedKbId(e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm focus:border-black focus:outline-none"
-            >
-              {kbs.map((kb) => (
-                <option key={kb.id} value={kb.id}>{kb.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => { setKbForm({ name: "", description: "" }); setKbOpen(true); }}
-            className="text-sm text-indigo-500 hover:text-indigo-700 transition-colors"
-          >
-            + 新建
-          </button>
-          {kbs.length > 0 && (
-            <div className="flex items-center gap-1 text-sm text-zinc-400">
-              {renamingKbId ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    value={renamingName}
-                    onChange={(e) => setRenamingName(e.target.value)}
-                    className="w-32 rounded border border-zinc-300 px-2 py-0.5 text-xs focus:border-black focus:outline-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { renameKb(renamingKbId, renamingName); setRenamingKbId(""); }
-                      if (e.key === "Escape") setRenamingKbId("");
-                    }}
-                  />
-                  <button onClick={() => { renameKb(renamingKbId, renamingName); setRenamingKbId(""); }} className="text-indigo-500">✓</button>
-                  <button onClick={() => setRenamingKbId("")} className="text-zinc-400">✗</button>
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      const kb = kbs.find((k) => k.id === selectedKbId);
-                      if (kb) { setRenamingKbId(kb.id); setRenamingName(kb.name); }
-                    }}
-                    className="hover:text-indigo-500 transition-colors"
-                  >
-                    重命名
-                  </button>
-                  <span>·</span>
-                  <button
-                    onClick={() => { setKbDelId(selectedKbId); setKbDelOpen(true); }}
-                    className="hover:text-red-500 transition-colors"
-                  >
-                    删除
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+      {/* 知识库选择器 */}
+      <div className="flex items-center gap-2 text-sm flex-wrap">
+        <span className="text-zinc-400">知识库：</span>
+        <select value={selectedKbId} onChange={(e) => setSelectedKbId(e.target.value)}
+          className="rounded border border-zinc-200 px-2 py-1 text-sm outline-none">
+          {kbs.map((kb) => (<option key={kb.id} value={kb.id}>{kb.name}</option>))}
+        </select>
+        <button onClick={() => { setKbForm({ name: "", description: "" }); setKbOpen(true); }} className="text-indigo-600 hover:text-indigo-800">+ 新建</button>
+        {selectedKbId && (
+          <div className="flex items-center gap-1 text-zinc-400">
+            {renamingKbId ? (
+              <>
+                <input value={renamingName} onChange={(e) => setRenamingName(e.target.value)}
+                  className="w-28 rounded border px-1.5 py-0.5 text-xs" onKeyDown={(e) => { if (e.key === "Enter") { renameKb(renamingKbId, renamingName); setRenamingKbId(""); } if (e.key === "Escape") setRenamingKbId(""); }} />
+                <button onClick={() => { renameKb(renamingKbId, renamingName); setRenamingKbId(""); }} className="text-indigo-500">✓</button>
+                <button onClick={() => setRenamingKbId("")} className="text-zinc-400">✗</button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => { const k = kbs.find((x) => x.id === selectedKbId); if (k) { setRenamingKbId(k.id); setRenamingName(k.name); } }} className="hover:text-indigo-500">重命名</button>
+                <span>·</span>
+                <button onClick={() => deleteKb(selectedKbId)} className="hover:text-red-500">删除</button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 处理中状态 */}
+      {processingCount > 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-sm text-blue-700 flex items-center gap-2">
+          <div className="animate-spin h-3.5 w-3.5 border-2 border-blue-400 border-t-blue-700 rounded-full" />
+          {processingCount} 个文件处理中 · {new Date().toLocaleDateString("zh-CN")}
         </div>
+      )}
 
-        {/* ========== 上传区域 ========== */}
+      {/* 主 Tab：上传资料 / 网站智采 */}
+      <div className="flex items-center gap-1 bg-zinc-100 rounded-lg p-1 w-fit">
+        <button onClick={() => setActiveTab("upload")}
+          className={`px-4 py-1.5 text-sm rounded-md transition-colors ${activeTab === "upload" ? "bg-white shadow-sm text-zinc-900 font-medium" : "text-zinc-500"}`}>
+          上传资料
+        </button>
+        <button onClick={() => setActiveTab("fetch")}
+          className={`px-4 py-1.5 text-sm rounded-md transition-colors ${activeTab === "fetch" ? "bg-white shadow-sm text-zinc-900 font-medium" : "text-zinc-500"}`}>
+          网站智采
+        </button>
+      </div>
+
+      {/* 上传资料区域 */}
+      {activeTab === "upload" && (
         <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={onDrop}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`mt-4 cursor-pointer rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
-            dragOver
-              ? "border-black bg-zinc-50"
-              : "border-zinc-300 hover:border-zinc-400"
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.txt,.md"
-            className="hidden"
-            onChange={onFileSelect}
-          />
+          className={`cursor-pointer rounded-xl border-2 border-dashed px-8 py-10 text-center transition-colors ${dragOver ? "border-black bg-zinc-50" : "border-zinc-300 hover:border-zinc-400"}`}>
+          <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) doUpload(f); if (fileInputRef.current) fileInputRef.current.value = ""; }} />
           {uploading ? (
             <div className="space-y-2">
-              <div className="mx-auto h-2 w-48 overflow-hidden rounded-full bg-zinc-200">
-                <div className="h-full w-2/3 animate-pulse rounded-full bg-black" />
-              </div>
+              <div className="mx-auto h-2 w-48 overflow-hidden rounded-full bg-zinc-200"><div className="h-full w-2/3 animate-pulse rounded-full bg-black" /></div>
               <p className="text-sm text-zinc-500">上传中...</p>
             </div>
           ) : (
             <>
               <div className="text-3xl">📁</div>
-              <p className="mt-3 text-sm font-medium text-zinc-700">
-                拖拽文件到此处，或点击上传
-              </p>
-              <p className="mt-1 text-xs text-zinc-400">
-                支持 PDF、Word、TXT、Markdown，最大 10MB
-              </p>
+              <p className="mt-3 text-sm font-medium text-zinc-700">拖拽文件到此处，或点击上传</p>
+              <p className="mt-1 text-xs text-zinc-400">支持 PDF、Word、PPT、Excel、TXT、Markdown · 单文件最大 50MB · 上传后自动解析</p>
             </>
           )}
         </div>
+      )}
 
-        {/* ========== 文件列表 ========== */}
-        <div className="mt-8">
-          <h2 className="text-sm font-medium text-zinc-500">
-            已上传文档 ({docs.length})
-          </h2>
-
-          {loading ? (
-            <div className="mt-3 space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="rounded-xl border border-zinc-200 bg-white p-5">
-                  <Skeleton className="h-5 w-64" />
-                  <Skeleton className="mt-2 h-3 w-36" />
-                </div>
-              ))}
-            </div>
-          ) : docs.length === 0 ? (
-            <div className="mt-3 rounded-xl border border-dashed border-zinc-300 bg-white py-16 text-center">
-              <div className="text-2xl">📄</div>
-              <p className="mt-2 text-sm text-zinc-400">还没有上传任何文档</p>
-              <p className="text-xs text-zinc-300">上传文档后将自动解析并建立知识库索引</p>
-            </div>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {docs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-5 py-4 hover:border-zinc-300 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="shrink-0 rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-600">
-                      {typeLabels[doc.file_type] || doc.file_type || "?"}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-black truncate">{doc.name}</p>
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${statusLabels[doc.status]?.color || "bg-zinc-100 text-zinc-600"}`}>
-                          {statusLabels[doc.status]?.label || doc.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-400">
-                        {formatSize(doc.file_size)} · {new Date(doc.created_at).toLocaleString("zh-CN")}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    {(doc.status === "ready" || doc.status === "error") && (
-                      <button
-                        onClick={() => parseDoc(doc.id)}
-                        className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
-                      >
-                        解析
-                      </button>
-                    )}
-                    {doc.status === "done" && (
-                      <button
-                        onClick={() => embedDoc(doc.id)}
-                        className="text-xs text-emerald-500 hover:text-emerald-700 transition-colors"
-                      >
-                        向量化
-                      </button>
-                    )}
-                    <button
-                      onClick={() => { setDelId(doc.id); setDelOpen(true); }}
-                      className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* 网站智采区域 */}
+      {activeTab === "fetch" && (
+        <div className="rounded-xl border border-zinc-200 bg-white p-6">
+          <div className="flex gap-2">
+            <input type="url" value={fetchUrl} onChange={(e) => setFetchUrl(e.target.value)}
+              placeholder="输入网页 URL，自动抓取内容解析入库..."
+              className="flex-1 rounded-md border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-black"
+              onKeyDown={(e) => e.key === "Enter" && handleFetchUrl()} />
+            <button onClick={handleFetchUrl} disabled={fetching}
+              className="px-5 py-2.5 text-sm font-medium bg-black text-white rounded-md hover:bg-zinc-800 disabled:opacity-50 whitespace-nowrap">
+              {fetching ? "采集中..." : "采集入库"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">输入任意网页 URL，系统自动抓取文本内容、分块存储并纳入知识库</p>
         </div>
+      )}
+
+      {/* 搜索 + 状态筛选 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜索文件名..." className="w-52 rounded-md border border-zinc-200 px-3 py-1.5 text-xs outline-none focus:border-black" />
+        <div className="flex items-center gap-1">
+          {STATUS_TABS.map((t) => (
+            <button key={t.key} onClick={() => setStatusFilter(t.key)}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${statusFilter === t.key ? "bg-black text-white" : "text-zinc-500 hover:bg-zinc-100"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-zinc-400 ml-auto">{filteredDocs.length} 个文件</span>
       </div>
 
-      <ConfirmDialog
-        open={delOpen}
-        onOpenChange={setDelOpen}
-        title="删除文档"
-        description="删除后文档和解析数据将被移除，确定删除？"
-        confirmLabel="删除"
-        onConfirm={deleteDoc}
-      />
+      {/* 文件列表 */}
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => <div key={i} className="h-20 rounded-lg bg-zinc-100 animate-pulse" />)}
+        </div>
+      ) : filteredDocs.length === 0 ? (
+        <div className="text-center py-16 text-zinc-400">
+          <p className="text-3xl mb-2">📄</p>
+          <p className="text-sm">暂无文件</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {filteredDocs.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-4 rounded-lg border border-zinc-100 bg-white px-5 py-3.5 hover:border-zinc-200 transition-colors">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-800 truncate">{doc.name}</span>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${STATUS_COLORS[doc.status] || "bg-zinc-100 text-zinc-600"}`}>
+                    {STATUS_LABELS[doc.status] || doc.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-zinc-400">
+                  {doc.source_url && (
+                    <span className="truncate max-w-[300px]">{doc.source_url.replace(/^https?:\/\//, "")}</span>
+                  )}
+                  {!doc.source_url && <span>{formatSize(doc.file_size)}</span>}
+                  <span>·</span>
+                  <span>{formatTime(doc.created_at)}</span>
+                  {doc.chunk_count > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>{doc.chunk_count} 片段</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {doc.content_text && (
+                  <button onClick={() => setShowText(doc)}
+                    className="px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 rounded transition-colors">查看文本</button>
+                )}
+                {doc.file_url && doc.file_type !== "webpage" && (
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                    className="px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 rounded transition-colors">查看原文</a>
+                )}
+                {(doc.status === "ready" || doc.status === "error" || doc.status === "failed") && (
+                  <button onClick={() => parseDoc(doc.id)}
+                    className="px-2 py-1 text-xs text-indigo-500 hover:bg-indigo-50 rounded transition-colors">解析</button>
+                )}
+                <button onClick={() => deleteDoc(doc.id)}
+                  className="px-2 py-1 text-xs text-red-400 hover:bg-red-50 rounded transition-colors">删除</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <ConfirmDialog
-        open={kbDelOpen}
-        onOpenChange={setKbDelOpen}
-        title="删除知识库"
-        description="删除知识库后，其中的文档不会被删除（仅移除关联）。确定删除？"
-        confirmLabel="删除"
-        onConfirm={() => { deleteKb(kbDelId); }}
-      />
+      {/* 查看文本弹窗 */}
+      {showText && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={(e) => { if (e.target === e.currentTarget) setShowText(null); }}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[85vh] overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-zinc-800 truncate">{showText.name}</h3>
+              <button onClick={() => setShowText(null)} className="text-zinc-400 hover:text-zinc-600 text-lg">✕</button>
+            </div>
+            <pre className="text-xs text-zinc-600 whitespace-pre-wrap bg-zinc-50 rounded-lg p-4 max-h-[60vh] overflow-auto">{showText.content_text || "暂无文本内容"}</pre>
+          </div>
+        </div>
+      )}
 
-      {/* 新建知识库对话框 */}
+      {/* 新建知识库弹窗 */}
       {kbOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-black">新建知识库</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={(e) => { if (e.target === e.currentTarget) setKbOpen(false); }}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg font-bold text-zinc-800">新建知识库</h2>
             <div className="mt-4 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-zinc-500 mb-1">名称</label>
-                <input
-                  value={kbForm.name}
-                  onChange={(e) => setKbForm({ ...kbForm, name: e.target.value })}
-                  placeholder="如：产品知识库"
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
-                  onKeyDown={(e) => e.key === "Enter" && createKb()}
-                />
+                <input value={kbForm.name} onChange={(e) => setKbForm({ ...kbForm, name: e.target.value })}
+                  placeholder="如：产品知识库" className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-black"
+                  onKeyDown={(e) => e.key === "Enter" && createKb()} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-500 mb-1">描述（可选）</label>
-                <input
-                  value={kbForm.description}
-                  onChange={(e) => setKbForm({ ...kbForm, description: e.target.value })}
-                  placeholder="简要描述知识库用途"
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
-                  onKeyDown={(e) => e.key === "Enter" && createKb()}
-                />
+                <input value={kbForm.description} onChange={(e) => setKbForm({ ...kbForm, description: e.target.value })}
+                  placeholder="简要描述知识库用途" className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-black"
+                  onKeyDown={(e) => e.key === "Enter" && createKb()} />
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setKbOpen(false)}>取消</Button>
-              <Button onClick={createKb}>创建</Button>
+              <button onClick={() => setKbOpen(false)} className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-md">取消</button>
+              <button onClick={createKb} className="px-4 py-2 text-sm bg-black text-white rounded-md hover:bg-zinc-800">创建</button>
             </div>
           </div>
         </div>
