@@ -10,53 +10,141 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { Toaster } from "sonner";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { SearchDialog } from "@/components/search-dialog";
 import { NotificationBell } from "@/components/notification-bell";
 import { PresenceIndicator } from "@/components/presence-indicator";
 
-const navLinks = [
-  { href: "/dashboard", label: "概览", icon: "📊" },
-  { href: "/guide", label: "入门指南", icon: "📖" },
-  { href: "/memos", label: "备忘录", icon: "📝" },
-  { href: "/knowledge", label: "知识库", icon: "📚" },
-  { href: "/content", label: "内容工坊", icon: "✍️" },
-  { href: "/radar", label: "获客雷达", icon: "📡" },
-  { href: "/growth", label: "增长系统", icon: "📈" },
-  { href: "/buzz", label: "声量引擎", icon: "🔊" },
-  { href: "/leads", label: "线索管理", icon: "👥" },
-  { href: "/opportunities", label: "采购机会", icon: "💼" },
-  { href: "/sites", label: "独立站", icon: "🌐" },
-  { href: "/analytics", label: "数据分析", icon: "📈" },
-  { href: "/tasks", label: "任务管理", icon: "✅" },
-  { href: "/settings", label: "设置", icon: "⚙️" },
-  { href: "/api-docs", label: "API 文档", icon: "🔌" },
+const navGroups = [
+  {
+    id: "acquisition",
+    label: "获客引擎",
+    icon: "🎯",
+    defaultExpanded: true,
+    links: [
+      { href: "/radar", label: "获客雷达", icon: "📡" },
+      { href: "/leads", label: "线索管理", icon: "👥" },
+      { href: "/opportunities", label: "采购机会", icon: "💼" },
+    ],
+  },
+  {
+    id: "content",
+    label: "内容营销",
+    icon: "✍️",
+    defaultExpanded: true,
+    links: [
+      { href: "/content", label: "内容工坊", icon: "✍️" },
+      { href: "/growth", label: "增长系统", icon: "📈" },
+      { href: "/buzz", label: "声量引擎", icon: "🔊" },
+    ],
+  },
+  {
+    id: "knowledge",
+    label: "知识管理",
+    icon: "📚",
+    defaultExpanded: false,
+    links: [
+      { href: "/knowledge", label: "知识库", icon: "📚" },
+      { href: "/memos", label: "备忘录", icon: "📝" },
+    ],
+  },
+  {
+    id: "tools",
+    label: "工具",
+    icon: "🛠️",
+    defaultExpanded: false,
+    links: [
+      { href: "/sites", label: "独立站", icon: "🌐" },
+      { href: "/analytics", label: "数据分析", icon: "📈" },
+      { href: "/tasks", label: "任务管理", icon: "✅" },
+    ],
+  },
+  {
+    id: "system",
+    label: "系统",
+    icon: "⚙️",
+    defaultExpanded: false,
+    links: [
+      { href: "/guide", label: "入门指南", icon: "📖" },
+      { href: "/settings", label: "设置", icon: "⚙️" },
+      { href: "/api-docs", label: "API 文档", icon: "🔌" },
+    ],
+  },
 ];
 
 function SidebarNav({ pathname, user }: { pathname: string; user: { is_platform_admin?: boolean } | null }) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    navGroups.forEach((g) => {
+      const hasActive = g.links.some((l) => pathname === l.href || pathname.startsWith(l.href + "/"));
+      if (g.defaultExpanded || hasActive) s.add(g.id);
+    });
+    return s;
+  });
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <nav className="flex flex-col gap-1 p-4 h-full">
-      <h2 className="mb-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-400">
-        VertaX
-      </h2>
-      {navLinks.map((link) => {
-        const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
+      <h2 className="mb-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-400">VertaX</h2>
+
+      {/* 概览 — 始终可见 */}
+      <Link
+        href="/dashboard"
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+          pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+            ? "bg-black text-white shadow-sm"
+            : "text-zinc-600 hover:bg-zinc-100"
+        }`}
+      >
+        <span>📊</span>概览
+      </Link>
+
+      {navGroups.map((group) => {
+        const open = expanded.has(group.id);
         return (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
-              isActive
-                ? "bg-black text-white shadow-sm"
-                : "text-zinc-600 hover:bg-zinc-100"
-            }`}
-          >
-            <span>{link.icon}</span>
-            {link.label}
-          </Link>
+          <div key={group.id}>
+            <button
+              onClick={() => toggle(group.id)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 transition-all duration-200"
+            >
+              <span>{group.icon}</span>
+              <span className="flex-1 text-left font-medium">{group.label}</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? "" : "-rotate-90"}`} />
+            </button>
+            {open && (
+              <div className="ml-2 mt-0.5 flex flex-col gap-0.5 border-l border-zinc-200 pl-4">
+                {group.links.map((link) => {
+                  const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+                        isActive
+                          ? "bg-black text-white shadow-sm"
+                          : "text-zinc-600 hover:bg-zinc-100"
+                      }`}
+                    >
+                      <span>{link.icon}</span>
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         );
       })}
+
       {user?.is_platform_admin && (
         <div className="mt-auto pt-3 border-t border-zinc-100">
           <Link
