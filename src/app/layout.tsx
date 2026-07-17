@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VertaX - AI驱动的B2B获客平台",
-  description: "知识库、内容工坊、线索管理，一站搞定",
+  title: "智客 VertaX — AI 内容获客，从第一篇文章开始",
+  description: "AI 驱动的内容获客平台，知识库、内容工坊、线索管理，一站搞定",
 };
 
 export default function RootLayout({

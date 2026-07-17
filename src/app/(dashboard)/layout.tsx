@@ -96,7 +96,7 @@ function SidebarNav({ pathname, user }: { pathname: string; user: { is_platform_
 
   return (
     <nav className="flex flex-col gap-1 p-4 h-full">
-      <h2 className="mb-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-400">VertaX</h2>
+      <h2 className="mb-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-400">智客 VertaX</h2>
 
       {/* 概览 — 始终可见 */}
       <Link
@@ -252,7 +252,7 @@ export default function DashboardLayout({
               <SidebarNav pathname={pathname} user={user} />
             </SheetContent>
           </Sheet>
-          <h1 className="text-sm font-bold text-black">VertaX</h1>
+          <h1 className="text-sm font-bold text-black">智客</h1>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex h-7 w-7 items-center justify-center rounded-full bg-black text-xs text-white font-medium">
               {user?.name?.charAt(0) || "?"}

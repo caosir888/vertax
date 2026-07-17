@@ -154,7 +154,7 @@ export async function sendCampaignEmail(
   try {
     const resend = new Resend(process.env.RESEND_API_KEY!);
     await resend.emails.send({
-      from: "VertaX <noreply@vertax.ai>",
+      from: "智客 <noreply@vertax.ai>",
       to: lead.email,
       subject,
       html: fullBody.replace(/\n/g, "<br>"),

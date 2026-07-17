@@ -96,7 +96,7 @@ export default function ApiDocsPage() {
       <div>
         <h1 className="text-2xl font-bold">API 文档</h1>
         <p className="text-zinc-500 mt-1">
-          使用 API Key 接入 VertaX。在「设置 → API Keys」中创建密钥。
+          使用 API Key 接入智客。在「设置 → API Keys」中创建密钥。
         </p>
       </div>
 

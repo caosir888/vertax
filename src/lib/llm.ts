@@ -58,7 +58,7 @@ export function buildRagPrompt(
   return [
     {
       role: "system",
-      content: `你是 VertaX 的 AI 知识库助手。请根据以下知识库内容回答用户的问题。
+      content: `你是智客(VertaX)的 AI 知识库助手。请根据以下知识库内容回答用户的问题。
 
 规则：
 1. 只根据提供的知识库内容回答，不要编造信息

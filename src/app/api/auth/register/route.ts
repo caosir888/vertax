@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
             team_id: team.id,
             user_id: a.id,
             title: "新用户注册",
-            message: `${name} (${email}) 刚刚注册了 VertaX`,
+            message: `${name} (${email}) 刚刚注册了智客`,
           }))
         );
       }

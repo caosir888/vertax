@@ -156,7 +156,7 @@ export default function DashboardPage() {
           </button>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">👋</span>
-            <h2 className="text-sm font-bold text-black">欢迎使用 VertaX！快速上手指南</h2>
+            <h2 className="text-sm font-bold text-black">欢迎使用智客！快速上手指南</h2>
           </div>
           <p className="text-xs text-zinc-500 mb-3">完成以下步骤，快速掌握核心功能</p>
           {/* 进度条 */}
@@ -199,7 +199,7 @@ export default function DashboardPage() {
             <span className="text-lg">🎉</span>
             <div>
               <p className="text-sm font-bold text-green-800">全部完成！</p>
-              <p className="text-xs text-green-600">你已经掌握了 VertaX 的核心功能，开始高效获客吧</p>
+              <p className="text-xs text-green-600">你已经掌握了智客的核心功能，开始高效获客吧</p>
             </div>
           </div>
           <button onClick={() => setShowOnboarding(false)} className="text-xs text-green-600 hover:text-green-800">收起</button>

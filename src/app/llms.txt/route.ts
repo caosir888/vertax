@@ -20,12 +20,12 @@ export async function GET() {
   }
 
   const lines: string[] = [
-    `# VertaX Content Hub`,
+    `# 智客(VertaX) Content Hub`,
     `# Generated: ${new Date().toISOString().split("T")[0]}`,
     `# Total published: ${contents.length}`,
     ``,
     `## Site Info`,
-    `Title: VertaX - AI-Powered B2B Growth Platform`,
+    `Title: 智客(VertaX) - AI-Powered B2B Growth Platform`,
     `Description: B2B content strategy platform for SEO, AEO, and GEO optimization`,
     ``,
   ];

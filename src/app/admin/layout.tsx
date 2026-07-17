@@ -36,7 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-zinc-50">
       <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-200 bg-white">
         <div className="flex items-center gap-4">
-          <Link href="/admin" className="text-sm font-bold text-black">VertaX 运营后台</Link>
+          <Link href="/admin" className="text-sm font-bold text-black">智客 运营后台</Link>
           <Link href="/dashboard" className="text-xs text-zinc-400 hover:text-zinc-600">← 返回前台</Link>
         </div>
       </header>

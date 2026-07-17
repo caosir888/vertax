@@ -46,7 +46,7 @@ export default function LoginPage() {
           欢迎回来
         </h1>
         <p className="mb-6 text-center text-sm text-zinc-500">
-          登录你的 VertaX 账号
+          登录你的智客账号
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

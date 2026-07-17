@@ -34,7 +34,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-zinc-50">
       {/* 顶栏 */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 bg-white">
-        <Link href="/" className="text-lg font-bold text-black">VertaX</Link>
+        <Link href="/" className="text-lg font-bold text-black">智客 <span className="text-zinc-400 font-normal text-sm">VertaX</span></Link>
         <div className="flex items-center gap-3">
           {user ? (
             <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-black">进入后台</Link>

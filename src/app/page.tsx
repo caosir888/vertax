@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "VertaX — AI 驱动的 B2B 获客平台",
-  description: "知识库 RAG、AI 内容工坊、线索管理 CRM、数据分析 Dashboard、独立站生成。一站搞定 B2B 获客。",
+  title: "智客 VertaX — AI 内容获客，从第一篇文章开始",
+  description: "AI 驱动的内容获客平台，知识库、内容工坊、线索管理，一站搞定 B2B 获客。",
   openGraph: {
-    title: "VertaX — AI 驱动的 B2B 获客平台",
+    title: "智客 VertaX — AI 内容获客，从第一篇文章开始",
     description: "知识库、内容工坊、线索管理，一站搞定 B2B 获客。",
     type: "website",
   },
@@ -57,7 +57,7 @@ export default function Home() {
       {/* ====== Header ====== */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 bg-white sticky top-0 z-50">
         <Link href="/" className="text-xl font-bold tracking-tight text-black">
-          VertaX
+          智客 <span className="text-zinc-400 font-normal text-sm">VertaX</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-zinc-600">
           <a href="#features">功能</a>
@@ -231,7 +231,7 @@ export default function Home() {
       <footer className="border-t border-zinc-200 bg-zinc-50 px-6 py-12">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-sm text-zinc-400">
-            &copy; {new Date().getFullYear()} VertaX. All rights reserved.
+            &copy; {new Date().getFullYear()} 智客 VertaX. All rights reserved.
           </div>
           <div className="flex items-center gap-6 text-sm text-zinc-500">
             <Link href="/login" className="hover:text-black transition-colors">登录</Link>

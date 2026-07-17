@@ -212,7 +212,7 @@ GEO 摘要: ${geo.geo_summary || ""}
     "@type": "Article",
     "headline": "文章标题",
     "description": "GEO 摘要",
-    "author": { "@type": "Organization", "name": "VertaX" }
+    "author": { "@type": "Organization", "name": "智客(VertaX)" }
   },
   "geo_summary": "${geo.geo_summary || ""}",
   "geo_title": "${geo.geo_title || srcTitle}"

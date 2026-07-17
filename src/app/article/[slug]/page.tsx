@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const content = await getContent(slug);
   if (!content) return { title: "内容未找到" };
 
-  const seoTitle = content.seo_title || content.title || "VertaX 内容";
+  const seoTitle = content.seo_title || content.title || "智客 内容";
   const seoDesc = content.seo_description || content.content?.substring(0, 160) || "";
 
   return {

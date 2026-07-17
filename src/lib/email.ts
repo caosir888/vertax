@@ -12,11 +12,11 @@ function welcomeEmailHtml(name: string, appUrl: string) {
   return `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <h1 style="color: #7c3aed; margin: 0;">VertaX</h1>
+    <h1 style="color: #7c3aed; margin: 0;">智客 VertaX</h1>
   </div>
   <h2 style="color: #1f2937;">欢迎加入，${name}！</h2>
   <p style="color: #4b5563; line-height: 1.6;">
-    你已经成功注册 VertaX。开始用 AI 驱动你的 B2B 获客之旅吧。
+    你已经成功注册智客。AI 内容获客，从第一篇文章开始。
   </p>
   <div style="margin: 24px 0;">
     <a href="${appUrl}/dashboard" style="display: inline-block; padding: 12px 24px; background: #7c3aed; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600;">
@@ -29,7 +29,7 @@ function welcomeEmailHtml(name: string, appUrl: string) {
   </p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
   <p style="color: #9ca3af; font-size: 12px;">
-    VertaX — AI 驱动的 B2B 获客平台
+    智客 VertaX — AI 内容获客，从第一篇文章开始
   </p>
 </div>`.trim();
 }
@@ -42,7 +42,7 @@ function weeklyReportHtml(
   return `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <h1 style="color: #7c3aed; margin: 0;">VertaX 周报</h1>
+    <h1 style="color: #7c3aed; margin: 0;">智客 周报</h1>
   </div>
   <h2 style="color: #1f2937;">你好，${name}</h2>
   <p style="color: #4b5563; line-height: 1.6;">以下是本周你的团队数据汇总：</p>
@@ -108,9 +108,9 @@ export async function sendWelcomeEmail(to: string, name: string) {
 
   try {
     const { error } = await resend.emails.send({
-      from: "VertaX <noreply@vertax.ai>",
+      from: "智客 <noreply@vertax.ai>",
       to,
-      subject: "欢迎加入 VertaX！",
+      subject: "欢迎加入智客！",
       html: welcomeEmailHtml(name, appUrl),
     });
     if (error) return { sent: false, reason: error.message };
@@ -132,9 +132,9 @@ export async function sendWeeklyReport(
 
   try {
     const { error } = await resend.emails.send({
-      from: "VertaX <noreply@vertax.ai>",
+      from: "智客 <noreply@vertax.ai>",
       to,
-      subject: "VertaX 周报 — 本周数据汇总",
+      subject: "智客 周报 — 本周数据汇总",
       html: weeklyReportHtml(name, data, appUrl),
     });
     if (error) return { sent: false, reason: error.message };
@@ -158,7 +158,7 @@ export async function sendLeadReminder(
 
   try {
     const { error } = await resend.emails.send({
-      from: "VertaX <noreply@vertax.ai>",
+      from: "智客 <noreply@vertax.ai>",
       to,
       subject: `线索跟进提醒：${leadName}`,
       html: leadReminderHtml(name, leadName, leadCompany, followUpDate, appUrl),
@@ -176,7 +176,7 @@ export async function sendTeamInvite(to: string, inviterName: string, teamName: 
 
   try {
     const { error } = await resend.emails.send({
-      from: "VertaX <noreply@vertax.ai>",
+      from: "智客 <noreply@vertax.ai>",
       to,
       subject: `${inviterName} 邀请你加入 ${teamName}`,
       html: `

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "入门指南 — VertaX",
+  title: "入门指南 — 智客",
 };
 
 const modules = [
@@ -63,7 +63,7 @@ export default function GuidePage() {
     <div className="px-4 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-4xl">
         <h1 className="text-2xl font-bold text-black">入门指南</h1>
-        <p className="mt-2 text-sm text-zinc-500">5 分钟快速上手 VertaX，开启 AI 获客之旅</p>
+        <p className="mt-2 text-sm text-zinc-500">5 分钟快速上手智客，开启 AI 获客之旅</p>
 
         {/* 快速开始 */}
         <div className="mt-8 rounded-xl border border-zinc-200 bg-white p-6">
