@@ -251,7 +251,7 @@ export default function ContentHubPage() {
     }
   }
 
-  // ====== Step 3: 一键智能优化 ======
+  // ====== Step 3: 一键智能优化 (SSE 实时进度) ======
   async function handleOptimize() {
     if (!savedContentId) {
       toast.error("请先保存内容为草稿");
@@ -260,34 +260,90 @@ export default function ContentHubPage() {
     setOptimizeLoading(true);
     setCurrentOptStep(-1);
     setOptimizeResults(null);
-    setStep(2); // 跳转到优化步骤
+    setStep(2);
 
-    // 模拟步骤进度
     const stepLabels = ["SEO 审计修复", "AEO 结构化", "GEO 引擎适配"];
-    for (let i = 0; i < stepLabels.length; i++) {
-      setCurrentOptStep(i);
-      await new Promise((r) => setTimeout(r, 600));
-    }
+    setOptimizeSteps(stepLabels.map((l) => ({ label: l })));
 
     try {
       const res = await fetch("/api/content-hub/optimize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content_id: savedContentId }),
+        body: JSON.stringify({ content_id: savedContentId, stream: true }),
       });
-      const json = await res.json();
-      if (json.data) {
-        setOptimizeResults(json.data);
-        toast.success("智能化优化完成");
-        setOptimizeSteps([
-          { label: "SEO 审计修复", score: json.data.seo?.error ? "失败" : `评分 ${json.data.seo?.score || "—"}` },
-          { label: "AEO 结构化", score: json.data.aeo?.error ? "失败" : `已生成 ${json.data.aeo?.faq_count || 0} 条 FAQ Schema` },
-          { label: "GEO 引擎适配", score: json.data.geo?.error ? "失败" : `框架: ${json.data.geo?.framework || "—"}` },
-        ]);
-      } else {
-        toast.error(json.error || "优化失败");
-        setOptimizeSteps(stepLabels.map((l) => ({ label: l, error: "失败" })));
+
+      if (!res.ok || !res.body) {
+        // 降级：服务器不支持 SSE，回退到 JSON 模式
+        const json = await res.json();
+        if (json.data) {
+          setOptimizeResults(json.data);
+          toast.success("智能化优化完成");
+        } else {
+          toast.error(json.error || "优化失败");
+        }
+        setOptimizeLoading(false);
+        return;
       }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let final: OptimizeResults = { seo: null, aeo: null, geo: null };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let eventType = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+          continue;
+        }
+        if (line.startsWith("data: ")) {
+          try {
+            const payload = JSON.parse(line.slice(6));
+              const eventType = payload.name || "";
+
+              if (payload.step) setCurrentOptStep(payload.step - 1);
+
+              if (eventType === "seo") {
+                // step_done for seo
+                setOptimizeSteps((prev) => {
+                  const next = [...prev];
+                  next[0] = { label: "SEO 审计修复", score: payload.result?.error ? "失败" : `评分 ${payload.result?.score || "—"}`, error: payload.result?.error };
+                  return next;
+                });
+                final.seo = payload.result;
+              } else if (eventType === "aeo") {
+                setOptimizeSteps((prev) => {
+                  const next = [...prev];
+                  next[1] = { label: "AEO 结构化", score: payload.result?.error ? "失败" : `已生成 ${payload.result?.faq_count || 0} 条 FAQ Schema`, error: payload.result?.error };
+                  return next;
+                });
+                final.aeo = payload.result;
+              } else if (eventType === "geo") {
+                setOptimizeSteps((prev) => {
+                  const next = [...prev];
+                  next[2] = { label: "GEO 引擎适配", score: payload.result?.error ? "失败" : `框架: ${payload.result?.framework || "—"}`, error: payload.result?.error };
+                  return next;
+                });
+                final.geo = payload.result;
+                final.llms_txt = payload.llms_txt;
+              } else if (payload.message === "优化完成") {
+                final = { seo: payload.seo, aeo: payload.aeo, geo: payload.geo, llms_txt: payload.llms_txt };
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+      }
+
+      setOptimizeResults(final);
+      toast.success("智能化优化完成");
     } catch {
       toast.error("优化请求失败");
       setOptimizeSteps(stepLabels.map((l) => ({ label: l, error: "失败" })));

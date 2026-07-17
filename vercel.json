@@ -19,6 +19,12 @@
       ]
     }
   ],
+  "crons": [
+    {
+      "path": "/api/cron/geo-tracking",
+      "schedule": "0 */6 * * *"
+    }
+  ],
   "redirects": [
     { "source": "/home", "destination": "/", "permanent": true }
   ]

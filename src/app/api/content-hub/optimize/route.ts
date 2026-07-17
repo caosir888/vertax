@@ -5,12 +5,16 @@ import { chat } from "@/lib/llm";
 import { extractMetaInfo, analyzeAEO } from "@/lib/seo";
 
 // POST /api/content-hub/optimize — 一键三检：SEO 审计修复 + AEO 结构化 + GEO 引擎适配
+// 支持 stream=true 参数，开启 SSE 实时进度推送
 export async function POST(request: NextRequest) {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const supabase = getSupabase();
-  const { content_id } = await request.json();
+  const body = await request.json();
+  const content_id = body.content_id;
+  const useSSE = body.stream === true;
+
   if (!content_id) return NextResponse.json({ error: "缺少 content_id" }, { status: 400 });
 
   // 获取内容
@@ -25,22 +29,95 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "内容不存在" }, { status: 404 });
   }
 
-  const body = content.content || "";
+  const bodyText = content.content || "";
   const title = content.title || content.seo_title || "";
   const tags = content.tags || [];
-  const results: { seo: unknown; aeo: unknown; geo: unknown } = { seo: null, aeo: null, geo: null };
 
-  // ====== Step 1: SEO 审计 + 修复 ======
+  if (!useSSE) {
+    // 传统 JSON 模式（向后兼容）
+    const results = await runOptimizeSteps(supabase, content, bodyText, title, tags);
+    return NextResponse.json({ data: results });
+  }
+
+  // SSE 流模式
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+
+      send("start", { step: 0, total: 3, message: "开始智能优化..." });
+      await sleep(300);
+
+      // Step 1: SEO
+      send("progress", { step: 1, total: 3, name: "seo", message: "正在进行 SEO 审计与修复..." });
+      const seoResult = await runSEOStep(supabase, content, bodyText, title, tags);
+      send("step_done", { step: 1, total: 3, name: "seo", result: seoResult });
+
+      // Step 2: AEO
+      send("progress", { step: 2, total: 3, name: "aeo", message: "正在进行 AEO 结构化..." });
+      const aeoResult = await runAEOStep(supabase, content, bodyText, title);
+      send("step_done", { step: 2, total: 3, name: "aeo", result: aeoResult });
+
+      // Step 3: GEO
+      send("progress", { step: 3, total: 3, name: "geo", message: "正在进行 GEO 引擎适配..." });
+      const geoResult = await runGEOStep(supabase, content, { team_id: user.team_id!, id: user.id }, bodyText, title);
+
+      const llmsTxt = buildLlmsTxt(content, title, tags, bodyText, geoResult);
+      send("step_done", { step: 3, total: 3, name: "geo", result: geoResult, llms_txt: llmsTxt });
+
+      send("complete", { message: "优化完成", seo: seoResult, aeo: aeoResult, geo: geoResult, llms_txt: llmsTxt });
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+/* ========== 核心优化步骤 ========== */
+
+async function runOptimizeSteps(
+  supabase: ReturnType<typeof getSupabase>,
+  content: Record<string, unknown>,
+  bodyText: string,
+  title: string,
+  tags: string[],
+) {
+  const results: { seo: unknown; aeo: unknown; geo: unknown } = { seo: null, aeo: null, geo: null };
+  const user = { team_id: content.team_id as string, id: content.created_by as string };
+
+  results.seo = await runSEOStep(supabase, content, bodyText, title, tags);
+  results.aeo = await runAEOStep(supabase, content, bodyText, title);
+  results.geo = await runGEOStep(supabase, content, { team_id: user.team_id, id: user.id } as { team_id: string; id: string }, bodyText, title);
+
+  const llmsTxt = buildLlmsTxt(content, title, tags, bodyText, results.geo);
+  return { ...results, llms_txt: llmsTxt };
+}
+
+async function runSEOStep(
+  supabase: ReturnType<typeof getSupabase>,
+  content: Record<string, unknown>,
+  bodyText: string,
+  title: string,
+  tags: string[],
+) {
   try {
-    const meta = extractMetaInfo(body, title, tags);
+    const meta = extractMetaInfo(bodyText, title, tags);
     const keyword = meta.main_keyword || title.split(/[\s|｜-]/)[0] || "";
 
-    // AI SEO 修复：生成优化后的 Meta + 内容改进
     const seoPrompt = `你是一位 SEO 优化专家。请为以下内容生成 SEO 优化方案。
 
 标题：${title}
 关键词：${keyword}
-正文前 1500 字：${body.substring(0, 1500)}
+正文前 1500 字：${bodyText.substring(0, 1500)}
 
 请返回 JSON：
 {
@@ -56,15 +133,14 @@ export async function POST(request: NextRequest) {
     ]);
     const seoData = JSON.parse(seoRes.replace(/```json\n?|\n?```/g, "").trim());
 
-    // 写入 seo_audits
     const seoScore = seoData.seo_score || meta.meta_title_score + meta.meta_description_score + meta.word_count_score + meta.keyword_score;
-    const aeoBase = analyzeAEO(body, title);
+    const aeoBase = analyzeAEO(bodyText, title);
     const aeoScore = aeoBase.score;
     const totalScore = Math.min(seoScore + aeoScore, 100);
 
     await supabase.from("seo_audits").upsert({
       content_id: content.id,
-      team_id: user.team_id,
+      team_id: content.team_id,
       seo_score: seoScore,
       aeo_score: aeoScore,
       overall_score: totalScore,
@@ -72,14 +148,14 @@ export async function POST(request: NextRequest) {
       meta_description: seoData.meta_description,
       main_keyword: keyword,
       keyword_in_title: title.toLowerCase().includes(keyword.toLowerCase()),
-      keyword_in_content: body.toLowerCase().includes(keyword.toLowerCase()),
+      keyword_in_content: bodyText.toLowerCase().includes(keyword.toLowerCase()),
       meta_title_score: meta.meta_title_score,
       meta_description_score: meta.meta_description_score,
       word_count_score: meta.word_count_score,
       keyword_score: meta.keyword_score,
       faq_score: aeoBase.faq_section.found ? 5 : 0,
       geo_score: 0,
-      word_count: body.length,
+      word_count: bodyText.length,
       has_faq_section: meta.has_faq_section,
       has_conclusion: meta.has_conclusion,
       has_schema: false,
@@ -88,23 +164,28 @@ export async function POST(request: NextRequest) {
       recommendations: JSON.stringify(seoData.improvements || []),
     }, { onConflict: "content_id" });
 
-    // 更新 contents 的 SEO 字段
     await supabase.from("contents").update({
       seo_title: seoData.meta_title,
       seo_description: seoData.meta_description,
     }).eq("id", content.id);
 
-    results.seo = { score: seoScore, title: seoData.meta_title, description: seoData.meta_description };
+    return { score: seoScore, title: seoData.meta_title, description: seoData.meta_description };
   } catch (e) {
-    results.seo = { error: e instanceof Error ? e.message : "SEO 优化失败" };
+    return { error: e instanceof Error ? e.message : "SEO 优化失败" };
   }
+}
 
-  // ====== Step 2: AEO 结构化 ======
+async function runAEOStep(
+  supabase: ReturnType<typeof getSupabase>,
+  content: Record<string, unknown>,
+  bodyText: string,
+  title: string,
+) {
   try {
     const aeoPrompt = `你是一位结构化数据专家。请为以下内容生成 AEO 优化方案。
 
 标题：${content.seo_title || title}
-正文前 2000 字：${body.substring(0, 2000)}
+正文前 2000 字：${bodyText.substring(0, 2000)}
 
 请返回 JSON：
 {
@@ -125,7 +206,6 @@ export async function POST(request: NextRequest) {
     ]);
     const aeoData = JSON.parse(aeoRes.replace(/```json\n?|\n?```/g, "").trim());
 
-    // 构建 FAQPage Schema
     const faqSchema = {
       "@context": "https://schema.org",
       "@type": "FAQPage",
@@ -136,10 +216,9 @@ export async function POST(request: NextRequest) {
       })),
     };
 
-    // 更新 seo_audits
     await supabase.from("seo_audits").upsert({
       content_id: content.id,
-      team_id: user.team_id,
+      team_id: content.team_id,
       has_schema: true,
       faq_schema_json: faqSchema,
       aeo_details: JSON.stringify({
@@ -149,7 +228,6 @@ export async function POST(request: NextRequest) {
       }),
     }, { onConflict: "content_id" });
 
-    // 更新 contents
     await supabase.from("contents").update({
       geo_data: {
         faq_schema: faqSchema,
@@ -159,17 +237,24 @@ export async function POST(request: NextRequest) {
       },
     }).eq("id", content.id);
 
-    results.aeo = { schema_generated: true, faq_count: (aeoData.faq_schema || []).length };
+    return { schema_generated: true, faq_count: (aeoData.faq_schema || []).length };
   } catch (e) {
-    results.aeo = { error: e instanceof Error ? e.message : "AEO 优化失败" };
+    return { error: e instanceof Error ? e.message : "AEO 优化失败" };
   }
+}
 
-  // ====== Step 3: GEO 引擎适配 ======
+async function runGEOStep(
+  supabase: ReturnType<typeof getSupabase>,
+  content: Record<string, unknown>,
+  user: { team_id: string; id: string },
+  bodyText: string,
+  title: string,
+) {
   try {
     const geoPrompt = `你是一位 GEO (Generative Engine Optimization) 专家。请为以下内容生成 AI 引擎优化版本。
 
 原标题：${content.seo_title || title}
-原文前 1500 字：${body.substring(0, 1500)}
+原文前 1500 字：${bodyText.substring(0, 1500)}
 
 请返回 JSON：
 {
@@ -184,7 +269,6 @@ export async function POST(request: NextRequest) {
     ]);
     const geoData = JSON.parse(geoRes.replace(/```json\n?|\n?```/g, "").trim());
 
-    // 创建 GEO 版本
     const { data: geoVersion } = await supabase.from("geo_versions").insert({
       team_id: user.team_id,
       user_id: user.id,
@@ -207,28 +291,31 @@ export async function POST(request: NextRequest) {
       word_count: geoData.geo_summary.length,
     }).select().single();
 
-    results.geo = {
+    return {
       id: geoVersion?.id,
       title: geoData.geo_title,
       summary: geoData.geo_summary.substring(0, 100) + "...",
       framework: geoData.framework,
     };
   } catch (e) {
-    results.geo = { error: e instanceof Error ? e.message : "GEO 适配失败" };
+    return { error: e instanceof Error ? e.message : "GEO 适配失败" };
   }
+}
 
-  // ====== 生成 llms.txt 片段 ======
-  let llmsTxt = "";
+function buildLlmsTxt(
+  content: Record<string, unknown>,
+  title: string,
+  tags: string[],
+  bodyText: string,
+  geoResult: unknown,
+): string {
   try {
-    llmsTxt = `# ${content.seo_title || title}\n## Summary\n${results.geo && typeof results.geo === "object" && "summary" in results.geo ? (results.geo as { summary: string }).summary : body.substring(0, 200)}...\n## Topics\n${tags.join(", ")}\n## Last Updated\n${new Date().toISOString().split("T")[0]}`;
-  } catch { /* optional */ }
+    return `# ${content.seo_title || title}\n## Summary\n${geoResult && typeof geoResult === "object" && "summary" in geoResult ? (geoResult as { summary: string }).summary : bodyText.substring(0, 200)}...\n## Topics\n${tags.join(", ")}\n## Last Updated\n${new Date().toISOString().split("T")[0]}`;
+  } catch {
+    return "";
+  }
+}
 
-  return NextResponse.json({
-    data: {
-      seo: results.seo,
-      aeo: results.aeo,
-      geo: results.geo,
-      llms_txt: llmsTxt,
-    },
-  });
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
