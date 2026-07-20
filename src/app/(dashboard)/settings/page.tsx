@@ -34,7 +34,7 @@ interface ApiKey {
   created_at: string;
 }
 
-type Tab = "info" | "members" | "subscription" | "apikeys" | "activity";
+type Tab = "info" | "members" | "subscription" | "apikeys" | "activity" | "loginLogs";
 
 interface ActivityLog {
   id: string;
@@ -69,9 +69,13 @@ export default function SettingsPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [loginLogs, setLoginLogs] = useState<{ id: string; email: string; success: boolean; ip_address: string; user_agent: string; error_reason: string; created_at: string }[]>([]);
+  const [loginLogFilter, setLoginLogFilter] = useState("");
+  const [loginLogLoading, setLoginLogLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => { if (tab === "loginLogs") loadLoginLogs(); }, [tab, loginLogFilter]);
 
   async function loadData() {
     setLoading(true);
@@ -93,6 +97,22 @@ export default function SettingsPage() {
       toast.error("设置信息加载失败");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadLoginLogs() {
+    setLoginLogLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (loginLogFilter && loginLogFilter !== "all") params.set("success", loginLogFilter);
+      params.set("limit", "100");
+      const res = await fetch(`/api/login-logs?${params}`);
+      const json = await res.json();
+      if (json.data) setLoginLogs(json.data);
+    } catch {
+      // ignore
+    } finally {
+      setLoginLogLoading(false);
     }
   }
 
@@ -121,6 +141,7 @@ export default function SettingsPage() {
             ["subscription", "订阅"],
             ["apikeys", "API 密钥"],
             ["activity", "操作日志"],
+            ["loginLogs", "登录记录"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -167,6 +188,67 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "loginLogs" && (
+            <div>
+              <div className="flex items-center gap-3 mb-4 flex-wrap">
+                <select
+                  value={loginLogFilter}
+                  onChange={(e) => setLoginLogFilter(e.target.value)}
+                  className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none"
+                >
+                  <option value="all">全部</option>
+                  <option value="true">成功</option>
+                  <option value="false">失败</option>
+                </select>
+                <button onClick={loadLoginLogs} className="text-xs text-zinc-400 hover:text-zinc-600">刷新</button>
+                <span className="text-xs text-zinc-400">{loginLogs.length} 条记录</span>
+              </div>
+
+              {loginLogLoading ? (
+                <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-zinc-100 animate-pulse" />)}</div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-zinc-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 bg-zinc-50 text-left">
+                        <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">时间</th>
+                        <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">邮箱</th>
+                        <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">状态</th>
+                        <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">IP 地址</th>
+                        <th className="px-4 py-2.5 text-xs font-medium text-zinc-500">说明</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loginLogs.map((log) => (
+                        <tr key={log.id} className="border-b border-zinc-100 hover:bg-zinc-50/50">
+                          <td className="px-4 py-2.5 text-xs text-zinc-500 whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString("zh-CN")}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs font-medium text-black">{log.email}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                              log.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                            }`}>
+                              {log.success ? "成功" : "失败"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-zinc-500 font-mono">{log.ip_address || "-"}</td>
+                          <td className="px-4 py-2.5 text-xs text-zinc-400 max-w-[200px] truncate">{log.error_reason || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {loginLogs.length === 0 && (
+                    <div className="text-center py-16">
+                      <p className="text-sm text-zinc-400">暂无登录记录</p>
+                      <p className="text-xs text-zinc-300 mt-1">登录记录将在下次登录后显示</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

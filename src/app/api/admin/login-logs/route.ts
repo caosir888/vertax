@@ -7,13 +7,7 @@ export async function GET(request: NextRequest) {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { data: adminUser } = await getSupabase()
-    .from("users")
-    .select("is_platform_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!adminUser?.is_platform_admin) {
+  if (!user.is_platform_admin) {
     return NextResponse.json({ error: "无权限访问" }, { status: 403 });
   }
 

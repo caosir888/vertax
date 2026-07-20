@@ -43,11 +43,17 @@ export async function POST(request: NextRequest) {
   // 哈希密码
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  // 检查是否首个用户（首个用户自动成为平台管理员）
+  const { count: userCount } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true });
+  const isFirstUser = (userCount ?? 0) === 0;
+
   // 写入用户
   const { data: user, error } = await supabase
     .from("users")
-    .insert({ name, email, password: hashedPassword })
-    .select("id, name, email, created_at")
+    .insert({ name, email, password: hashedPassword, is_platform_admin: isFirstUser })
+    .select("id, name, email, is_platform_admin, created_at")
     .single();
 
   if (error) {
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest) {
 
   // 注册成功 → 自动登录
   try {
-    await setSessionCookie({ id: user.id, name: user.name, email: user.email, team_id: team.id });
+    await setSessionCookie({ id: user.id, name: user.name, email: user.email, team_id: team.id, is_platform_admin: isFirstUser });
   } catch {
     // cookie 设置失败不影响注册结果（用户可手动登录）
   }
